@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suscripción</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#F3F5F2; --surface:#fff; --line:#E1E5E0; --ink:#18201C; --soft:#5D6863;
+  --jade:#17795C; --jade-d:#11624A; --jade-l:#E2F3EB; --red:#C62828; --amber-l:#FFF5D6;
+  --sans:"Noto Sans TC","Helvetica Neue",Arial,system-ui,sans-serif;
+}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid #F2B84B;outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:22px 16px 80px}
+h1{font-size:26px;margin:0 0 6px}
+h2{font-size:19px;margin:0 0 10px}
+.lead{margin:0 0 18px;color:var(--soft)}
+.demo{background:var(--amber-l);border:1px solid #E6C56A;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:8px;list-style:none;padding:0;margin:0 0 18px}
+.steps li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:4px solid var(--line);color:var(--soft);font-weight:500}
+.steps li span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--line);font-size:13px;font-weight:700}
+.steps li.on{border-top-color:var(--jade);color:var(--ink);font-weight:700}
+.steps li.on span,.steps li.done span{background:var(--jade);color:#fff}
+.steps li.done{border-top-color:var(--jade)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 18px}
+.form{display:grid;gap:16px}
+label{display:block}
+.lbl{display:block;font-size:14px;font-weight:500;margin-bottom:4px}
+.opt{color:var(--soft);font-weight:400}
+input[type=text],input[type=email],input[type=number],input[type=datetime-local],select,textarea{width:100%;background:#fff;border:1px solid #B9C0BA;border-radius:10px;padding:11px 12px;font-size:16px;min-height:48px}
+textarea{resize:vertical;min-height:80px}
+input[aria-invalid=true],select[aria-invalid=true]{border-color:var(--red)}
+.fe{margin:4px 0 0;color:var(--red);font-size:14px;min-height:0}
+.fe:empty{display:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:440px){.grid2{grid-template-columns:1fr}}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
+.plans{display:grid;gap:10px}
+.plan{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:2px 12px;padding:12px 14px;border:1.5px solid #B9C0BA;border-radius:12px;cursor:pointer;background:#fff}
+.plan input{grid-row:1/3;width:20px;height:20px;accent-color:var(--jade)}
+.plan .pl-name{font-weight:700}
+.plan .pl-sub{grid-column:2;color:var(--soft);font-size:14px}
+.plan .pl-price{grid-row:1/3;grid-column:3;font-weight:700;font-size:18px}
+.plan:has(input:checked){border-color:var(--jade);background:var(--jade-l)}
+.plan:has(input:focus-visible){outline:3px solid #F2B84B;outline-offset:2px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;border-radius:12px;border:1.5px solid #B9C0BA;background:#fff;font-weight:700;cursor:pointer;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--jade);border-color:var(--jade);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--jade-d)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{min-height:38px;padding:0 14px;font-size:14px}
+.actions{display:flex;gap:10px;margin-top:4px}
+.actions .primary{flex:1}
+.hint{margin:0;color:var(--soft);font-size:14px}
+.err-box{background:#FCEBEB;border:1px solid #E7B5B5;color:#8A1C1C;border-radius:10px;padding:10px 14px;margin-top:12px;font-size:14px}
+
+.sum{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:0}
+.sum dt{color:var(--soft)}
+.sum dd{margin:0;text-align:right;font-weight:500}
+.sum .total{font-size:22px;font-weight:700;color:var(--jade-d)}
+.methods{display:grid;gap:8px}
+.methods .plan{grid-template-columns:auto 1fr}
+.methods .plan input{grid-row:auto}
+.box{border:1px solid var(--line);border-radius:12px;padding:14px;background:#FAFBFA}
+.box p{margin:0 0 8px}
+.copyrow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 8px 8px 12px;margin:6px 0}
+.copyrow b{word-break:break-all;font-size:16px}
+.bank{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0 0 6px}
+.bank dt{color:var(--soft)}
+.bank dd{margin:0;word-break:break-all}
+.shot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.shot img{max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--line)}
+input[type=file]{position:absolute;left:-9999px}
+.chk{display:flex;gap:12px;align-items:flex-start}
+.chk input{width:22px;height:22px;flex:none;margin-top:2px;accent-color:var(--jade)}
+.done-card{text-align:center;padding:32px 20px}
+.done-card .ok{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 12px;border-radius:50%;background:var(--jade);color:#fff;font-size:28px}
+.foot{margin-top:20px;color:var(--soft);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Suscripción</h1>
+  <p class="lead">Completa tus datos y realiza el pago. Revisaremos tu comprobante y te agregaremos al grupo.</p>
+  <div id="demo" class="demo" hidden>Modo demostración: la página todavía no está conectada, así que no se envía nada.</div>
+
+  <ol class="steps" id="steps">
+    <li class="on" id="st1"><span>1</span>Tus datos</li>
+    <li id="st2"><span>2</span>Pago</li>
+  </ol>
+
+  <div id="loading" class="card">Cargando…</div>
+  <div id="loaderr" class="err-box" hidden></div>
+
+  <!-- Paso 1 -->
+  <form id="f1" class="card form" novalidate hidden autocomplete="on">
+    <label><span class="lbl">Nombre completo</span>
+      <input type="text" name="name" maxlength="80" autocomplete="name">
+      <p class="fe" data-for="name"></p></label>
+
+    <label><span class="lbl">País de origen</span>
+      <select name="country"></select>
+      <p class="fe" data-for="country"></p></label>
+    <label id="otherBox" hidden><span class="lbl">¿Cuál país?</span>
+      <input type="text" name="countryOther" maxlength="40">
+      <p class="fe" data-for="countryOther"></p></label>
+
+    <label><span class="lbl">Edad</span>
+      <input type="number" name="age" inputmode="numeric" min="1" max="120">
+      <p class="fe" data-for="age"></p></label>
+
+    <div class="grid2">
+      <label><span class="lbl">Correo electrónico</span>
+        <input type="email" name="email" inputmode="email" autocomplete="email" maxlength="120">
+        <p class="fe" data-for="email"></p></label>
+      <label><span class="lbl">Confirma tu correo</span>
+        <input type="email" name="email2" inputmode="email" autocomplete="off" maxlength="120">
+        <p class="fe" data-for="email2"></p></label>
+    </div>
+
+    <label><span class="lbl">WhatsApp</span>
+      <input type="tel" name="whatsapp" inputmode="tel" autocomplete="tel" maxlength="25" placeholder="+52 55 1234 5678">
+      <p class="hint">Con código de país. Te agregaremos al grupo de WhatsApp con este número; al entrar, los demás miembros podrán verlo.</p>
+      <p class="fe" data-for="whatsapp"></p></label>
+
+    <label id="groupBox"><span class="lbl">Grupo</span>
+      <select name="group"></select>
+      <p class="fe" data-for="group"></p></label>
+    <p class="hint" id="groupDesc" hidden></p>
+
+    <div><span class="lbl">Plan</span>
+      <div class="plans" id="plans"></div>
+      <p class="fe" data-for="plan"></p></div>
+
+    <label><span class="lbl">Comentarios <span class="opt">(opcional)</span></span>
+      <textarea name="note" maxlength="500"></textarea></label>
+
+    <div class="hp" aria-hidden="true"><label>Sitio web<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="actions"><button type="submit" class="btn primary" id="next">Siguiente</button></div>
+    <div id="err1" class="err-box" hidden></div>
+  </form>
+
+  <!-- Paso 2 -->
+  <form id="f2" class="form" novalidate hidden>
+    <div class="card">
+      <h2>Resumen</h2>
+      <dl class="sum" id="sum"></dl>
+    </div>
+
+    <div class="card form">
+      <div id="methodsBox" hidden>
+        <span class="lbl">Método de pago</span>
+        <div class="methods">
+          <label class="plan"><input type="radio" name="method" value="paypal" checked><span><b>PayPal</b></span></label>
+          <label class="plan"><input type="radio" name="method" value="mx_bank"><span><b>Transferencia bancaria (México)</b><br><span class="hint">Disponible para planes bimestral y trimestral.</span></span></label>
+        </div>
+      </div>
+
+      <div class="box" id="paypalBox"></div>
+      <div class="box" id="bankBox" hidden></div>
+
+      <label><span class="lbl" id="refLabel">ID de la transacción de PayPal</span>
+        <input type="text" name="ref" maxlength="80" autocomplete="off">
+        <p class="hint" id="refHint"></p></label>
+
+      <label><span class="lbl">Fecha y hora del pago</span>
+        <input type="datetime-local" name="paidAt"></label>
+
+      <div>
+        <span class="lbl">Captura de pantalla del pago</span>
+        <div class="shot">
+          <label class="btn sm" for="shot" id="shotBtn" tabindex="0">Subir captura</label>
+          <input type="file" id="shot" accept="image/*">
+          <img id="prev" alt="Vista previa de tu captura" hidden>
+          <button type="button" class="btn sm" id="shotDel" hidden>Quitar</button>
+        </div>
+        <p class="fe" id="shotErr"></p>
+      </div>
+
+      <label class="chk"><input type="checkbox" id="ok"><span>Confirmo que ya realicé el pago y que mis datos son correctos.</span></label>
+
+      <p class="hint" id="hint2">Completa todos los campos para poder confirmar.</p>
+      <div class="actions">
+        <button type="button" class="btn" id="back">Atrás</button>
+        <button type="submit" class="btn primary" id="submit" disabled>Confirmar suscripción</button>
+      </div>
+      <div id="err2" class="err-box" hidden></div>
+    </div>
+  </form>
+
+  <!-- Listo -->
+  <section id="done" class="card done-card" hidden>
+    <div class="ok" aria-hidden="true">✓</div>
+    <h2>¡Solicitud enviada!</h2>
+    <p>Revisaremos tu pago y te agregaremos al grupo. Te contactaremos al correo <b id="doneMail"></b>.</p>
+    <p class="hint">Tu referencia: <b id="doneRef"></b></p>
+  </section>
+
+  <p class="foot">Tus datos y tu comprobante solo se usan para gestionar tu suscripción.</p>
+</div>
+
+<script>
+/* =====================================================================
+   設定：部署 Apps Script 網頁應用程式後，把網址貼在這裡。
+   （Code.gs 檔頭有部署步驟）沒填時是示範模式，不會送出任何資料。
+   ===================================================================== */
+const API_URL = "https://script.google.com/macros/s/AKfycby2QlKiAxpvN4JYvEocOGwDKPn0RQfEgIz_PDvQgmh0/dev";
+const DEMO = API_URL.startsWith("YOUR_");
+
+const COUNTRIES = [
+  ["MX", "México", "墨西哥", "52"], ["ES", "España", "西班牙", "34"], ["CO", "Colombia", "哥倫比亞", "57"], ["AR", "Argentina", "阿根廷", "54"],
+  ["CL", "Chile", "智利", "56"], ["PE", "Perú", "秘魯", "51"], ["VE", "Venezuela", "委內瑞拉", "58"], ["EC", "Ecuador", "厄瓜多", "593"],
+  ["GT", "Guatemala", "瓜地馬拉", "502"], ["CR", "Costa Rica", "哥斯大黎加", "506"], ["PA", "Panamá", "巴拿馬", "507"], ["UY", "Uruguay", "烏拉圭", "598"],
+  ["PY", "Paraguay", "巴拉圭", "595"], ["BO", "Bolivia", "玻利維亞", "591"], ["HN", "Honduras", "宏都拉斯", "504"], ["SV", "El Salvador", "薩爾瓦多", "503"],
+  ["NI", "Nicaragua", "尼加拉瓜", "505"], ["DO", "República Dominicana", "多明尼加", "1"], ["CU", "Cuba", "古巴", "53"], ["PR", "Puerto Rico", "波多黎各", "1"],
+  ["US", "Estados Unidos", "美國", "1"], ["OTHER", "Otro país", "", ""]
+];
+const PLANS = {
+  monthly:   { es: "Mensual",    sub: "1 mes" },
+  bimonthly: { es: "Bimestral",  sub: "2 meses" },
+  quarterly: { es: "Trimestral", sub: "3 meses" }
+};
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function money(n, c) {
+  const s = Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return c === "MXN" ? `$${s} MXN` : c === "USD" ? `US$ ${s}` : `NT$ ${s}`;
+}
+const pad = n => String(n).padStart(2, "0");
+const nowLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+/* ---------- API（示範模式用假資料） ---------- */
+const DEMO_GROUPS = [{ id: "demo", name: "Grupo de práctica de chino", desc: "Práctica diaria de conversación con retroalimentación.", currency: "USD", prices: { monthly: 8, bimonthly: 15, quarterly: 21 } }];
+async function api(action, params = {}) {
+  if (DEMO) {
+    await new Promise(r => setTimeout(r, 300));
+    if (action === "groups") return { ok: true, groups: DEMO_GROUPS };
+    const g = DEMO_GROUPS[0], amount = g.prices[params.plan];
+    const bankOk = params.country === "MX" && params.plan !== "monthly";
+    return { ok: true, amount, currency: g.currency,
+      paypal: { email: "demo@example.com", link: "", note: "" },
+      bank: bankOk ? { bank: "Banco de ejemplo", holder: "Titular de ejemplo", clabe: "000000000000000000", amount: Math.ceil(amount * 18.8), currency: "MXN", note: "En el concepto escribe tu nombre." } : null };
+  }
+  const u = new URL(API_URL); u.searchParams.set("action", action);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u.toString()); return r.json();
+}
+async function post(body) {
+  if (DEMO) { await new Promise(r => setTimeout(r, 500)); return { ok: true, ref: "DEMO01" }; }
+  const r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
+  return r.json();
+}
+
+/* ---------- 狀態 ---------- */
+const S = { groups: [], group: null, plan: "", country: "", info: null, method: "paypal", shot: null, sending: false, email: "" };
+const f1 = $("#f1"), f2 = $("#f2");
+
+function showStep(n) {
+  f1.hidden = n !== 1; f2.hidden = n !== 2; $("#done").hidden = n !== 3;
+  $("#st1").className = n === 1 ? "on" : "done"; $("#st2").className = n === 2 ? "on" : "";
+  if (n === 3) $("#steps").hidden = true;
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- 載入群組 ---------- */
+async function init() {
+  if (DEMO) $("#demo").hidden = false;
+  $("[name=country]", f1).innerHTML = `<option value="">Elige tu país</option>` + COUNTRIES.map(c => `<option value="${c[0]}">${c[1]}</option>`).join("");
+  try {
+    const r = await api("groups");
+    if (!r.ok) throw new Error("api");
+    S.groups = r.groups || [];
+  } catch (e) {
+    $("#loading").hidden = true;
+    const b = $("#loaderr"); b.hidden = false; b.textContent = "No pudimos cargar la página. Revisa tu conexión y vuelve a intentarlo.";
+    return;
+  }
+  $("#loading").hidden = true;
+  if (!S.groups.length) { const b = $("#loaderr"); b.hidden = false; b.textContent = "Por ahora no hay grupos disponibles para suscribirse."; return; }
+  const sel = $("[name=group]", f1);
+  sel.innerHTML = (S.groups.length > 1 ? `<option value="">Elige un grupo</option>` : "") + S.groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("");
+  if (S.groups.length === 1) sel.value = S.groups[0].id;
+  onGroup();
+  f1.hidden = false;
+}
+
+function onGroup() {
+  const id = $("[name=group]", f1).value;
+  S.group = S.groups.find(g => g.id === id) || null;
+  const d = $("#groupDesc"); d.hidden = !(S.group && S.group.desc); d.textContent = S.group ? (S.group.desc || "") : "";
+  const box = $("#plans");
+  if (!S.group) { box.innerHTML = `<p class="hint">Elige un grupo para ver los planes.</p>`; S.plan = ""; return; }
+  const keys = Object.keys(PLANS).filter(k => Number(S.group.prices?.[k]) > 0);
+  if (!keys.includes(S.plan)) S.plan = "";
+  box.innerHTML = keys.map(k => `<label class="plan"><input type="radio" name="plan" value="${k}" ${S.plan === k ? "checked" : ""}>
+    <span class="pl-name">${PLANS[k].es}</span><span class="pl-sub">${PLANS[k].sub}</span><span class="pl-price">${money(S.group.prices[k], S.group.currency)}</span></label>`).join("");
+}
+f1.addEventListener("change", e => {
+  if (e.target.name === "group") onGroup();
+  if (e.target.name === "plan") S.plan = e.target.value;
+  if (e.target.name === "country") {
+    $("#otherBox").hidden = e.target.value !== "OTHER";
+    // 號碼欄還沒填（或只有上一個國碼）時，自動帶入該國國碼
+    const wa = f1.elements.whatsapp, prev = COUNTRIES.find(c => c[0] === S.country), cur = COUNTRIES.find(c => c[0] === e.target.value);
+    const empty = !wa.value.trim() || (prev && prev[3] && wa.value.replace(/\s/g, "") === "+" + prev[3]);
+    if (empty) wa.value = cur && cur[3] ? "+" + cur[3] + " " : "";
+    S.country = e.target.value;
+  }
+});
+
+/* ---------- 第 1 步：驗證 ---------- */
+function fieldErr(name, msg) {
+  const p = $(`.fe[data-for="${name}"]`, f1); if (p) p.textContent = msg || "";
+  const i = f1.elements[name]; if (i && i.setAttribute) i.setAttribute("aria-invalid", msg ? "true" : "false");
+  return !msg;
+}
+function validate1() {
+  const v = n => (f1.elements[n]?.value || "").trim();
+  const bad = [];
+  const chk = (name, cond, msg) => { if (!fieldErr(name, cond ? "" : msg)) bad.push(name); };
+  chk("name", v("name").length >= 2, "Escribe tu nombre completo.");
+  chk("country", !!v("country"), "Elige tu país.");
+  chk("countryOther", v("country") !== "OTHER" || v("countryOther").length >= 2, "Escribe tu país.");
+  const age = Number(v("age"));
+  chk("age", Number.isInteger(age) && age >= 1 && age <= 120, "Escribe tu edad con números.");
+  chk("email", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v("email")), "Escribe un correo válido.");
+  chk("email2", v("email").toLowerCase() === v("email2").toLowerCase(), "Los correos no coinciden.");
+  const waDigits = v("whatsapp").replace(/\D/g, "");
+  chk("whatsapp", v("whatsapp").startsWith("+") && waDigits.length >= 8 && waDigits.length <= 15, "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.");
+  chk("group", !!S.group, "Elige un grupo.");
+  chk("plan", !!S.plan, "Elige un plan.");
+  if (bad.length) { const el = f1.elements[bad[0]] || $(".plans", f1); el.focus && el.focus(); return false; }
+  return true;
+}
+function showErr(id, msg) { const b = $(id); b.hidden = !msg; b.textContent = msg || ""; }
+
+f1.addEventListener("submit", async e => {
+  e.preventDefault();
+  showErr("#err1", "");
+  if (f1.elements.website.value) return;       // 防機器人欄位
+  if (!validate1()) return;
+  S.country = f1.elements.country.value; S.email = f1.elements.email.value.trim();
+  const btn = $("#next"); btn.disabled = true; btn.textContent = "Cargando…";
+  try {
+    const info = await api("payinfo", { groupId: S.group.id, plan: S.plan, country: S.country });
+    if (!info.ok) throw new Error(info.error || "api");
+    S.info = info; S.method = "paypal"; S.shot = null;
+    fillStep2();
+    showStep(2);
+  } catch (err) {
+    console.error(err);
+    showErr("#err1", "No pudimos cargar la información de pago. Inténtalo de nuevo en un momento.");
+  } finally { btn.disabled = false; btn.textContent = "Siguiente"; }
+});
+
+/* ---------- 第 2 步：付款資訊 ---------- */
+function copyRow(text) { return `<div class="copyrow"><b>${esc(text)}</b><button type="button" class="btn sm" data-copy="${esc(text)}">Copiar</button></div>`; }
+
+function fillStep2() {
+  const i = S.info;
+  $("#sum").innerHTML = `<dt>Grupo</dt><dd>${esc(S.group.name)}</dd><dt>Plan</dt><dd>${PLANS[S.plan].es}</dd><dt>Total a pagar</dt><dd class="total" id="total"></dd>`;
+  $("#methodsBox").hidden = !i.bank;
+  f2.elements.method.value = "paypal";
+  f2.elements.ref.value = ""; f2.elements.paidAt.value = nowLocal(); f2.elements.paidAt.max = nowLocal();
+  $("#ok").checked = false; $("#shot").value = ""; setShot(null); showErr("#err2", "");
+  renderMethod();
+}
+
+function renderMethod() {
+  const i = S.info, bank = S.method === "mx_bank" && i.bank;
+  $("#total").textContent = bank ? money(i.bank.amount, "MXN") : money(i.amount, i.currency);
+  $("#paypalBox").hidden = !!bank; $("#bankBox").hidden = !bank;
+  if (!bank) $("#bankBox").innerHTML = "";
+  if (!bank) {
+    const p = i.paypal || {};
+    $("#paypalBox").innerHTML = `<p>Envía <b>${esc(money(i.amount, i.currency))}</b> a esta cuenta de PayPal:</p>${copyRow(p.email || "")}
+      ${p.link ? `<a class="btn sm primary" href="${esc(p.link)}" target="_blank" rel="noopener">Abrir PayPal</a>` : ""}
+      ${p.note ? `<p class="hint" style="margin-top:8px">${esc(p.note)}</p>` : ""}
+      <p class="hint" style="margin-top:8px">Después de pagar, guarda la captura de pantalla y el ID de la transacción.</p>`;
+    $("#refLabel").textContent = "ID de la transacción de PayPal";
+    $("#refHint").textContent = "Lo encuentras en el comprobante o en el correo de PayPal.";
+  } else {
+    const b = i.bank;
+    $("#bankBox").innerHTML = `<p>Haz una transferencia por <b>${esc(money(b.amount, "MXN"))}</b> a esta cuenta:</p>
+      <dl class="bank"><dt>Banco</dt><dd>${esc(b.bank)}</dd><dt>Titular</dt><dd>${esc(b.holder)}</dd></dl>
+      <span class="hint">CLABE interbancaria</span>${copyRow(b.clabe)}
+      ${b.note ? `<p class="hint" style="margin-top:8px">${esc(b.note)}</p>` : ""}`;
+    $("#refLabel").textContent = "Clave de rastreo (SPEI)";
+    $("#refHint").textContent = "Aparece en el comprobante de tu transferencia.";
+  }
+  check2();
+}
+
+f2.addEventListener("change", e => { if (e.target.name === "method") { S.method = e.target.value; renderMethod(); } });
+f2.addEventListener("input", check2);
+$("#back").addEventListener("click", () => showStep(1));
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-copy]"); if (!b) return;
+  const done = () => { const t = b.textContent; b.textContent = "Copiado"; setTimeout(() => b.textContent = t, 1500); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(b.dataset.copy).then(done, () => {});
+  else { const ta = document.createElement("textarea"); ta.value = b.dataset.copy; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); done(); } catch (x) {} ta.remove(); }
+});
+
+/* ---------- 截圖：壓縮成 JPEG ---------- */
+async function compress(file) {
+  if (!file.type.startsWith("image/")) throw new Error("type");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("decode")); i.src = url; });
+    const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+    let q = 0.82, out = c.toDataURL("image/jpeg", q);
+    while (out.length > 3000000 && q > 0.5) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+    if (out.length > 5000000) throw new Error("big");
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
+function setShot(dataUrl) {
+  S.shot = dataUrl;
+  const img = $("#prev"); img.hidden = !dataUrl; if (dataUrl) img.src = dataUrl;
+  $("#shotDel").hidden = !dataUrl; $("#shotBtn").textContent = dataUrl ? "Cambiar captura" : "Subir captura";
+}
+$("#shot").addEventListener("change", async e => {
+  const file = e.target.files[0]; $("#shotErr").textContent = ""; if (!file) return;
+  try { setShot(await compress(file)); }
+  catch (err) { console.error(err); setShot(null); $("#shotErr").textContent = "No pudimos leer esa imagen. Prueba con otra captura (JPG o PNG)."; }
+  check2();
+});
+$("#shotBtn").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#shot").click(); } });
+$("#shotDel").addEventListener("click", () => { $("#shot").value = ""; setShot(null); check2(); });
+
+/* ---------- 全部填完才能按確認 ---------- */
+function check2() {
+  const ok = f2.elements.ref.value.trim().length >= 6 && !!f2.elements.paidAt.value && !!S.shot && $("#ok").checked && !S.sending;
+  $("#submit").disabled = !ok; $("#hint2").hidden = ok;
+}
+
+const ERRORS = {
+  rate: "Enviaste varias solicitudes seguidas. Inténtalo de nuevo más tarde.",
+  method: "Ese método de pago no está disponible para tu plan. Vuelve atrás y revisa tus datos.",
+  file: "La captura es demasiado grande o no es una imagen válida. Prueba con otra."
+};
+f2.addEventListener("submit", async e => {
+  e.preventDefault(); if ($("#submit").disabled) return;
+  S.sending = true; check2(); showErr("#err2", "");
+  const btn = $("#submit"); btn.textContent = "Enviando…";
+  const c = COUNTRIES.find(x => x[0] === S.country);
+  const body = {
+    hp: f1.elements.website.value,
+    name: f1.elements.name.value.trim(),
+    countryCode: S.country,
+    nationality: S.country === "OTHER" ? f1.elements.countryOther.value.trim() : c[2],
+    age: Number(f1.elements.age.value),
+    email: S.email,
+    whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
+    groupId: S.group.id, plan: S.plan,
+    method: S.info.bank && S.method === "mx_bank" ? "mx_bank" : "paypal",
+    ref: f2.elements.ref.value.trim(),
+    paidAt: f2.elements.paidAt.value,
+    note: f1.elements.note.value.trim(),
+    screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] },
+    lang: "es"
+  };
+  try {
+    const r = await post(body);
+    if (!r.ok) { showErr("#err2", ERRORS[r.error] || "No pudimos enviar tu solicitud. Revisa tus datos e inténtalo de nuevo."); return; }
+    $("#doneMail").textContent = S.email; $("#doneRef").textContent = r.ref || "";
+    showStep(3);
+  } catch (err) {
+    console.error(err);
+    showErr("#err2", "No pudimos enviar tu solicitud. Revisa tu conexión e inténtalo de nuevo.");
+  } finally { S.sending = false; btn.textContent = "Confirmar suscripción"; check2(); }
+});
+
+init();
+</script>
+</body>
+</html>
