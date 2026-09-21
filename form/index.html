@@ -141,6 +141,12 @@ hr{border:0;border-top:1px solid var(--line);margin:4px 0}
   .tools input{flex:1 1 100%}
 }
 
+/* 多幣別價格 */
+.ptable{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr));gap:8px;align-items:center}
+.ptable b{font-size:13px;color:var(--soft);font-weight:500;text-align:center}
+.ptable .pl{font-weight:500}
+.ptable input{padding:9px 6px}
+.fee .sep{margin:0 6px;color:var(--soft)}
 /* 訂閱申請 */
 .notice{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:var(--amber-l);border:1px solid #E6C56A;border-radius:10px;padding:10px 14px;margin:16px 0 0}
 .notice.info{margin:0;font-size:14px}
@@ -410,7 +416,20 @@ async function markReq(r, status, memberId) {
 }
 const memberTotal = m => (m.payments || []).reduce((s, p) => s + (Number(p.twd) || 0), 0);
 const groupTotal = gid => membersOf(gid).reduce((s, m) => s + memberTotal(m), 0); // 含封存成員的歷史收款
-const offeredPlans = g => { const k = Object.keys(PLANS).filter(k => Number(g.prices?.[k]) > 0); return k.length ? k : Object.keys(PLANS); };
+/* 價格表：{ 幣別: { 方案: 金額 } }。舊資料只有 currency + prices，也會自動當成單一幣別的價格表 */
+const CUR_ORDER = ["TWD", "USD", "MXN"];
+const priceTableOf = g => (g.priceTable && Object.keys(g.priceTable).length) ? g.priceTable : (g.prices ? { [g.currency || "TWD"]: g.prices } : {});
+const priceOf = (g, plan, cur) => Number(priceTableOf(g)[cur]?.[plan]) || 0;
+const groupCurs = g => CUR_ORDER.filter(c => Object.values(priceTableOf(g)[c] || {}).some(v => Number(v) > 0));
+const primaryCur = g => { const cs = groupCurs(g); return cs.includes(g.currency) ? g.currency : (cs[0] || "TWD"); };
+const offeredPlans = g => { const k = Object.keys(PLANS).filter(p => groupCurs(g).some(c => priceOf(g, p, c) > 0)); return k.length ? k : Object.keys(PLANS); };
+/* 這個方案預設收哪個幣別、多少錢：先看主要幣別，沒有就找第一個有價格的幣別 */
+function defaultPay(g, plan) {
+  const pc = primaryCur(g);
+  if (priceOf(g, plan, pc) > 0) return { cur: pc, amt: priceOf(g, plan, pc) };
+  const c = groupCurs(g).find(c => priceOf(g, plan, c) > 0);
+  return c ? { cur: c, amt: priceOf(g, plan, c) } : { cur: pc, amt: "" };
+}
 
 /* 到期日當天不算有效：d = 距離到期日的天數 */
 function statusOf(m) {
@@ -548,9 +567,12 @@ function viewOverview() {
 
 function viewGroup(g) {
   const c = countBy(membersOf(g.id));
-  const rate = state.settings.rates[g.currency] || 1;
-  const fees = Object.entries(PLANS).filter(([k]) => Number(g.prices?.[k]) > 0).map(([k, p]) =>
-    `<span class="fee"><em>${p.label}</em><b>${money(g.prices[k], g.currency)}</b>${g.currency !== "TWD" ? `<small>約 ${money(toTWD(g.prices[k], g.currency, rate), "TWD")}</small>` : ""}</span>`).join("");
+  const cs = groupCurs(g), pc = primaryCur(g);
+  const fees = Object.entries(PLANS).filter(([k]) => cs.some(c => priceOf(g, k, c) > 0)).map(([k, p]) => {
+    const parts = cs.filter(c => priceOf(g, k, c) > 0).map(c => `<b>${money(priceOf(g, k, c), c)}</b>`).join(`<span class="sep">/</span>`);
+    const approx = !priceOf(g, k, "TWD") && pc !== "TWD" && priceOf(g, k, pc) > 0 ? `<small>約 ${money(toTWD(priceOf(g, k, pc), pc, state.settings.rates[pc] || 1), "TWD")}</small>` : "";
+    return `<span class="fee"><em>${p.label}</em>${parts}${approx}</span>`;
+  }).join("");
   const chip = (f, label, warn) => `<button class="chip ${state.filter === f ? "on" : ""} ${warn && c[f] ? "warn" : ""}" data-act="filter" data-f="${f}">${label}<b>${c[f]}</b></button>`;
 
   $("#main").innerHTML = `<div class="head"><div><h1>${esc(g.name)}${g.public ? `<span class="pubtag">公開訂閱中</span>` : ""}</h1>${g.note ? `<p class="note">${esc(g.note)}</p>` : ""}</div>
@@ -665,11 +687,14 @@ function readPay(f, extra) {
   const rate = currency === "TWD" ? 1 : (Number(f.elements.rate.value) || state.settings.rates[currency] || 1);
   return { id: uid(), paidAt: f.elements.paidAt.value, amount, currency, rate, twd: toTWD(amount, currency, rate), ...extra };
 }
-function watchPay(f) {
+function watchPay(f, pricer) {
   f.addEventListener("input", e => {
     const n = e.target.name;
     if (n === "rate") e.target.dataset.touched = "1";
-    if (n === "currency") delete f.elements.rate.dataset.touched;
+    if (n === "currency") {
+      delete f.elements.rate.dataset.touched;
+      if (pricer && !f.elements.amount.dataset.touched) { const a = pricer(f.elements.currency.value); if (a) f.elements.amount.value = a; }   // 換幣別時帶入該幣別的定價
+    }
     if (n === "amount") f.elements.amount.dataset.touched = "1";
     syncPay(f);
   });
@@ -680,11 +705,12 @@ function openGroupForm(id) {
   const g = id ? groupById(id) : { name: "", currency: "TWD", prices: {}, note: "" };
   openDlg(id ? "編輯群組" : "新增群組", `<form id="gform" class="form" autocomplete="off">
     <label><span class="lbl">群組名稱</span><input name="gname" required maxlength="40" value="${esc(g.name)}"></label>
-    <label><span class="lbl">收費幣別</span><select name="currency">${Object.keys(CUR).map(c => `<option value="${c}" ${c === g.currency ? "selected" : ""}>${CUR[c].name}</option>`).join("")}</select></label>
-    <div class="grid3">
-      ${Object.entries(PLANS).map(([k, p]) => `<label><span class="lbl">${p.label}費用</span><input name="p_${k}" type="number" inputmode="decimal" min="0" step="any" value="${g.prices?.[k] || ""}"></label>`).join("")}
-    </div>
-    <p class="hint">留空代表這個群組不提供該方案。改費用不會影響已經記錄的付款。</p>
+    <label><span class="lbl">主要幣別（新增付款時的預設幣別，並用來換算台幣）</span><select name="currency">${CUR_ORDER.map(c => `<option value="${c}" ${c === primaryCur(g) ? "selected" : ""}>${CUR[c].name}</option>`).join("")}</select></label>
+    <div><span class="lbl">各幣別的費用（不需要的格子留空）</span>
+      <div class="ptable"><span></span>${CUR_ORDER.map(c => `<b>${CUR[c].name}</b>`).join("")}
+        ${Object.entries(PLANS).map(([k, p]) => `<span class="pl">${p.label}</span>${CUR_ORDER.map(c => `<input name="p_${k}_${c}" type="number" inputmode="decimal" min="0" step="any" aria-label="${p.label}（${CUR[c].name}）" value="${priceOf(g, k, c) || ""}">`).join("")}`).join("")}
+      </div></div>
+    <p class="hint">學員付款時，可以在有填價格的幣別裡選一種。墨西哥銀行轉帳固定用披索：披索欄有填就用那個價格，沒填就用匯率換算。改費用不會影響已經記錄的付款。</p>
     <label class="chk"><input type="checkbox" name="isPublic" ${g.public ? "checked" : ""}><span>顯示在公開訂閱頁（學員可以選這個群組）</span></label>
     <label><span class="lbl">公開頁說明（選填，學員會看到）</span><textarea name="publicDesc" rows="2">${esc(g.publicDesc)}</textarea></label>
     <label><span class="lbl">內部備註（學員看不到）</span><textarea name="note" rows="2">${esc(g.note)}</textarea></label>
@@ -692,10 +718,15 @@ function openGroupForm(id) {
   </form>`);
   $("#gform").onsubmit = async e => {
     e.preventDefault();
-    const f = e.target, prices = {};
-    Object.keys(PLANS).forEach(k => prices[k] = Number(f.elements["p_" + k].value) || 0);
-    if (!Object.values(prices).some(v => v > 0)) { toast("至少要設定一種方案的費用"); return; }
-    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency: f.elements.currency.value, prices, note: f.elements.note.value.trim(), public: f.elements.isPublic.checked, publicDesc: f.elements.publicDesc.value.trim() };
+    const f = e.target, table = {};
+    CUR_ORDER.forEach(c => {
+      const row = {};
+      Object.keys(PLANS).forEach(k => { const v = Number(f.elements[`p_${k}_${c}`].value); if (v > 0) row[k] = v; });
+      if (Object.keys(row).length) table[c] = row;
+    });
+    if (!Object.keys(table).length) { toast("至少要填一個價格"); return; }
+    const want = f.elements.currency.value, currency = table[want] ? want : Object.keys(table)[0];
+    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency, prices: table[currency], priceTable: table, note: f.elements.note.value.trim(), public: f.elements.isPublic.checked, publicDesc: f.elements.publicDesc.value.trim() };
     state.view = "group"; state.groupId = obj.id; state.q = ""; state.filter = "all";
     closeDlg();
     try { await store.put("groups", obj); toast("已儲存群組"); } catch (err) { console.error(err); toast("儲存失敗"); }
@@ -738,7 +769,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     </div>
     <label><span class="lbl">到期日</span><input name="expiresAt" type="date" required value="${esc(m.expiresAt)}"></label>
     <p class="hint" id="exphint"></p>
-    ${editing ? "" : payBlock(req ? (req.expectedCurrency || g.currency) : g.currency, req ? req.expectedAmount : g.prices?.[m.plan])}
+    ${editing ? "" : (() => { const d = defaultPay(g, m.plan); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
     <label><span class="lbl">備註</span><textarea name="note" rows="2">${esc(m.note)}</textarea></label>
     <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">${editing ? "儲存變更" : "新增成員"}</button></div>
   </form>`);
@@ -749,7 +780,9 @@ function openMemberForm(groupId, memberId, opts = {}) {
     if (who === "expiresAt") expDirty = true;
     const act = v("activatedAt"), months = PLANS[v("plan")].months;
     if (!editing && !expDirty && act) f.elements.expiresAt.value = addMonths(act, months, dayOf(act));
-    if (!editing && who === "plan" && !f.elements.amount.dataset.touched) f.elements.amount.value = g.prices?.[v("plan")] || "";
+    if (!editing && who === "plan" && !f.elements.amount.dataset.touched) {
+      const d = defaultPay(g, v("plan")); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
+    }
     const exp = v("expiresAt"); let hint = "";
     if (act && exp) {
       hint = `最後有效日 ${addDays(exp, -1)}（到期日當天不算）。`;
@@ -759,7 +792,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     $("#exphint").textContent = hint;
     if (!editing) syncPay(f);
   };
-  if (!editing) watchPay(f);
+  if (!editing) watchPay(f, cur => priceOf(g, v("plan"), cur));
   if (req && !editing) f.elements.amount.dataset.touched = "1";
   f.addEventListener("input", e => recalc(e.target.name));
   recalc();
@@ -821,13 +854,15 @@ function openRenew(id, opts = {}) {
     </div>
     <p class="twd" id="newexp"></p>
     <p class="hint" id="newhint"></p>
-    ${payBlock(req ? (req.expectedCurrency || g.currency) : g.currency, req ? req.expectedAmount : g.prices?.[m.plan])}
+    ${(() => { const d = defaultPay(g, req ? req.plan : m.plan); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
     <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">確認續訂</button></div>
   </form>`);
   const f = $("#rform"), v = n => f.elements[n].value;
   const newExp = () => addMonths(v("start"), PLANS[v("plan")].months, anchorOf(v("start")));
   const recalc = who => {
-    if (who === "plan" && !f.elements.amount.dataset.touched) f.elements.amount.value = g.prices?.[v("plan")] || "";
+    if (who === "plan" && !f.elements.amount.dataset.touched) {
+      const d = defaultPay(g, v("plan")); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
+    }
     const start = v("start");
     if (start) {
       $("#newexp").textContent = `新的到期日 ${newExp()}`;
@@ -837,7 +872,7 @@ function openRenew(id, opts = {}) {
     }
     syncPay(f);
   };
-  watchPay(f);
+  watchPay(f, cur => priceOf(g, v("plan"), cur));
   if (req) f.elements.amount.dataset.touched = "1";
   f.addEventListener("input", e => recalc(e.target.name));
   recalc();
@@ -901,7 +936,7 @@ function exportJSON() {
 
 /* 本機示範資料 */
 async function seed() {
-  const g = { id: uid(), name: "範例：西語學習群", currency: "USD", prices: { monthly: 8, bimonthly: 15, quarterly: 21 }, note: "示範用，可以直接刪除。", createdAt: Date.now() };
+  const g = { id: uid(), name: "範例：西語學習群", currency: "USD", prices: { monthly: 8, bimonthly: 15, quarterly: 21 }, priceTable: { USD: { monthly: 8, bimonthly: 15, quarterly: 21 }, MXN: { monthly: 150, bimonthly: 280, quarterly: 390 } }, note: "示範用，可以直接刪除。", createdAt: Date.now() };
   await store.put("groups", g);
   const t = todayStr();
   const mk = (name, nat, age, plan, expOffset, archived) => {
@@ -911,7 +946,7 @@ async function seed() {
       payments: [{ id: uid(), kind: "first", paidAt: `${act}T10:00`, plan, amount: g.prices[plan], currency: "USD", rate: state.settings.rates.USD, twd: toTWD(g.prices[plan], "USD", state.settings.rates.USD), periodStart: act, periodEnd: exp }] };
   };
   for (const m of [mk("María", "墨西哥", 29, "monthly", 0), mk("Carlos", "西班牙", 34, "monthly", 1), mk("Ana", "阿根廷", 31, "monthly", 5), mk("Lucía", "哥倫比亞", 26, "quarterly", 45), mk("Diego", "智利", 41, "bimonthly", -3), mk("Pedro", "秘魯", 38, "monthly", -40, true)]) await store.put("members", m);
-  await store.put("requests", { id: uid(), status: "pending", createdAt: new Date().toISOString(), name: "Sofía Ramírez", nationality: "墨西哥", countryCode: "MX", age: 27, email: "sofia@example.com", whatsapp: "+52 55 1234 5678", groupId: g.id, groupName: g.name, plan: "bimonthly", method: "mx_bank", expectedAmount: 281, expectedCurrency: "MXN", ref: "DEMO-0001", paidAt: `${t}T09:30`, note: "", screenshotUrl: "" });
+  await store.put("requests", { id: uid(), status: "pending", createdAt: new Date().toISOString(), name: "Sofía Ramírez", nationality: "墨西哥", countryCode: "MX", age: 27, email: "sofia@example.com", whatsapp: "+52 55 1234 5678", groupId: g.id, groupName: g.name, plan: "bimonthly", method: "mx_bank", expectedAmount: 280, expectedCurrency: "MXN", ref: "DEMO-0001", paidAt: `${t}T09:30`, note: "", screenshotUrl: "" });
   toast("已載入範例資料");
 }
 
