@@ -50,7 +50,8 @@ input[aria-invalid=true],select[aria-invalid=true]{border-color:var(--red)}
 .plan input{grid-row:1/3;width:20px;height:20px;accent-color:var(--jade)}
 .plan .pl-name{font-weight:700}
 .plan .pl-sub{grid-column:2;color:var(--soft);font-size:14px}
-.plan .pl-price{grid-row:1/3;grid-column:3;font-weight:700;font-size:18px}
+.plan .pl-price{grid-row:1/3;grid-column:3;font-weight:700;font-size:18px;display:grid;justify-items:end;line-height:1.35}
+.plan .pl-price small{font-size:13px;font-weight:500;color:var(--soft)}
 .plan:has(input:checked){border-color:var(--jade);background:var(--jade-l)}
 .plan:has(input:focus-visible){outline:3px solid #F2B84B;outline-offset:2px}
 
@@ -167,6 +168,11 @@ input[type=file]{position:absolute;left:-9999px}
         </div>
       </div>
 
+      <div id="curBox" hidden>
+        <span class="lbl">Moneda de pago</span>
+        <div class="methods" id="curOpts"></div>
+      </div>
+
       <div class="box" id="paypalBox"></div>
       <div class="box" id="bankBox" hidden></div>
 
@@ -242,16 +248,17 @@ const pad = n => String(n).padStart(2, "0");
 const nowLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 /* ---------- API（示範模式用假資料） ---------- */
-const DEMO_GROUPS = [{ id: "demo", name: "Grupo de práctica de chino", desc: "Práctica diaria de conversación con retroalimentación.", currency: "USD", prices: { monthly: 8, bimonthly: 15, quarterly: 21 } }];
+const DEMO_GROUPS = [{ id: "demo", name: "Grupo de práctica de chino", desc: "Práctica diaria de conversación con retroalimentación.", currency: "USD", priceTable: { USD: { monthly: 8, bimonthly: 15, quarterly: 21 }, MXN: { monthly: 150, bimonthly: 280, quarterly: 390 }, TWD: { monthly: 250, bimonthly: 470, quarterly: 650 } } }];
 async function api(action, params = {}) {
   if (DEMO) {
     await new Promise(r => setTimeout(r, 300));
     if (action === "groups") return { ok: true, groups: DEMO_GROUPS };
-    const g = DEMO_GROUPS[0], amount = g.prices[params.plan];
-    const bankOk = params.country === "MX" && params.plan !== "monthly";
-    return { ok: true, amount, currency: g.currency,
+    const g = DEMO_GROUPS[0], pl = params.plan;
+    const options = Object.keys(g.priceTable).filter(c => g.priceTable[c][pl] > 0).map(c => ({ currency: c, amount: g.priceTable[c][pl], link: "" }));
+    const bankOk = params.country === "MX" && pl !== "monthly";
+    return { ok: true, amount: options[0].amount, currency: options[0].currency, options,
       paypal: { email: "demo@example.com", link: "", note: "" },
-      bank: bankOk ? { bank: "Banco de ejemplo", holder: "Titular de ejemplo", clabe: "000000000000000000", amount: Math.ceil(amount * 18.8), currency: "MXN", note: "En el concepto escribe tu nombre." } : null };
+      bank: bankOk ? { bank: "Banco de ejemplo", holder: "Titular de ejemplo", clabe: "000000000000000000", amount: g.priceTable.MXN[pl], currency: "MXN", note: "En el concepto escribe tu nombre." } : null };
   }
   const u = new URL(API_URL); u.searchParams.set("action", action);
   Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
@@ -264,7 +271,8 @@ async function post(body) {
 }
 
 /* ---------- 狀態 ---------- */
-const S = { groups: [], group: null, plan: "", country: "", info: null, method: "paypal", shot: null, sending: false, email: "" };
+const CUR_NAME = { USD: "Dólar estadounidense", MXN: "Peso mexicano", TWD: "Nuevo dólar taiwanés" };
+const S = { cur: "", groups: [], group: null, plan: "", country: "", info: null, method: "paypal", shot: null, sending: false, email: "" };
 const f1 = $("#f1"), f2 = $("#f2");
 
 function showStep(n) {
@@ -296,16 +304,22 @@ async function init() {
   f1.hidden = false;
 }
 
+/* 這個方案有定價的所有幣別（主要幣別排第一） */
+function pricesOf(g, plan) {
+  const t = g.priceTable || {}, order = [g.currency, ...Object.keys(t).filter(c => c !== g.currency)];
+  return order.filter(c => t[c] && Number(t[c][plan]) > 0).map(c => ({ currency: c, amount: t[c][plan] }));
+}
 function onGroup() {
   const id = $("[name=group]", f1).value;
   S.group = S.groups.find(g => g.id === id) || null;
   const d = $("#groupDesc"); d.hidden = !(S.group && S.group.desc); d.textContent = S.group ? (S.group.desc || "") : "";
   const box = $("#plans");
   if (!S.group) { box.innerHTML = `<p class="hint">Elige un grupo para ver los planes.</p>`; S.plan = ""; return; }
-  const keys = Object.keys(PLANS).filter(k => Number(S.group.prices?.[k]) > 0);
+  const keys = Object.keys(PLANS).filter(k => pricesOf(S.group, k).length);
   if (!keys.includes(S.plan)) S.plan = "";
   box.innerHTML = keys.map(k => `<label class="plan"><input type="radio" name="plan" value="${k}" ${S.plan === k ? "checked" : ""}>
-    <span class="pl-name">${PLANS[k].es}</span><span class="pl-sub">${PLANS[k].sub}</span><span class="pl-price">${money(S.group.prices[k], S.group.currency)}</span></label>`).join("");
+    <span class="pl-name">${PLANS[k].es}</span><span class="pl-sub">${PLANS[k].sub}</span>
+    <span class="pl-price">${pricesOf(S.group, k).map((o, i) => i ? `<small>${money(o.amount, o.currency)}</small>` : money(o.amount, o.currency)).join("")}</span></label>`).join("");
 }
 f1.addEventListener("change", e => {
   if (e.target.name === "group") onGroup();
@@ -373,6 +387,10 @@ function fillStep2() {
   $("#sum").innerHTML = `<dt>Grupo</dt><dd>${esc(S.group.name)}</dd><dt>Plan</dt><dd>${PLANS[S.plan].es}</dd><dt>Total a pagar</dt><dd class="total" id="total"></dd>`;
   $("#methodsBox").hidden = !i.bank;
   f2.elements.method.value = "paypal";
+  // 幣別：墨西哥人預設披索（有定價的話），其他人用主要幣別
+  S.cur = (S.country === "MX" && i.options.some(o => o.currency === "MXN")) ? "MXN" : i.options[0].currency;
+  $("#curOpts").innerHTML = i.options.map(o => `<label class="plan"><input type="radio" name="cur" value="${o.currency}" ${o.currency === S.cur ? "checked" : ""}>
+    <span><b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${CUR_NAME[o.currency] || o.currency}</span></span></label>`).join("");
   f2.elements.ref.value = ""; f2.elements.paidAt.value = nowLocal(); f2.elements.paidAt.max = nowLocal();
   $("#ok").checked = false; $("#shot").value = ""; setShot(null); showErr("#err2", "");
   renderMethod();
@@ -380,13 +398,15 @@ function fillStep2() {
 
 function renderMethod() {
   const i = S.info, bank = S.method === "mx_bank" && i.bank;
-  $("#total").textContent = bank ? money(i.bank.amount, "MXN") : money(i.amount, i.currency);
+  const opt = i.options.find(o => o.currency === S.cur) || i.options[0];
+  $("#curBox").hidden = !!bank || i.options.length < 2;
+  $("#total").textContent = bank ? money(i.bank.amount, "MXN") : money(opt.amount, opt.currency);
   $("#paypalBox").hidden = !!bank; $("#bankBox").hidden = !bank;
   if (!bank) $("#bankBox").innerHTML = "";
   if (!bank) {
     const p = i.paypal || {};
-    $("#paypalBox").innerHTML = `<p>Envía <b>${esc(money(i.amount, i.currency))}</b> a esta cuenta de PayPal:</p>${copyRow(p.email || "")}
-      ${p.link ? `<a class="btn sm primary" href="${esc(p.link)}" target="_blank" rel="noopener">Abrir PayPal</a>` : ""}
+    $("#paypalBox").innerHTML = `<p>Envía <b>${esc(money(opt.amount, opt.currency))}</b> a esta cuenta de PayPal:</p>${copyRow(p.email || "")}
+      ${opt.link ? `<a class="btn sm primary" href="${esc(opt.link)}" target="_blank" rel="noopener">Abrir PayPal</a>` : ""}
       ${p.note ? `<p class="hint" style="margin-top:8px">${esc(p.note)}</p>` : ""}
       <p class="hint" style="margin-top:8px">Después de pagar, guarda la captura de pantalla y el ID de la transacción.</p>`;
     $("#refLabel").textContent = "ID de la transacción de PayPal";
@@ -403,7 +423,10 @@ function renderMethod() {
   check2();
 }
 
-f2.addEventListener("change", e => { if (e.target.name === "method") { S.method = e.target.value; renderMethod(); } });
+f2.addEventListener("change", e => {
+  if (e.target.name === "method") { S.method = e.target.value; renderMethod(); }
+  if (e.target.name === "cur") { S.cur = e.target.value; renderMethod(); }
+});
 f2.addEventListener("input", check2);
 $("#back").addEventListener("click", () => showStep(1));
 
@@ -452,6 +475,7 @@ function check2() {
 const ERRORS = {
   rate: "Enviaste varias solicitudes seguidas. Inténtalo de nuevo más tarde.",
   method: "Ese método de pago no está disponible para tu plan. Vuelve atrás y revisa tus datos.",
+  currency: "Esa moneda no está disponible para este plan. Vuelve atrás e inténtalo de nuevo.",
   file: "La captura es demasiado grande o no es una imagen válida. Prueba con otra."
 };
 f2.addEventListener("submit", async e => {
@@ -469,6 +493,7 @@ f2.addEventListener("submit", async e => {
     whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
     groupId: S.group.id, plan: S.plan,
     method: S.info.bank && S.method === "mx_bank" ? "mx_bank" : "paypal",
+    currency: S.cur,
     ref: f2.elements.ref.value.trim(),
     paidAt: f2.elements.paidAt.value,
     note: f1.elements.note.value.trim(),
@@ -477,7 +502,7 @@ f2.addEventListener("submit", async e => {
   };
   try {
     const r = await post(body);
-    if (!r.ok) { showErr("#err2", ERRORS[r.error] || "No pudimos enviar tu solicitud. Revisa tus datos e inténtalo de nuevo."); return; }
+    if (!r.ok) { showErr("#err2", ERRORS[r.error] || `No pudimos enviar tu solicitud. Revisa tus datos e inténtalo de nuevo. (código: ${r.error || "desconocido"})`); return; }
     $("#doneMail").textContent = S.email; $("#doneRef").textContent = r.ref || "";
     showStep(3);
   } catch (err) {
