@@ -70,6 +70,11 @@ label{display:block}
 .foot{display:flex;justify-content:flex-end;gap:10px;padding-top:6px}
 hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 
+/* 群組內子分頁 */
+.subtabs{display:flex;gap:8px;margin:18px 0 6px;border-bottom:1px solid var(--line)}
+.schip{background:none;border:0;border-bottom:3px solid transparent;padding:8px 4px 10px;margin-right:14px;font-weight:500;color:var(--soft);cursor:pointer;min-height:40px}
+.schip.on{color:var(--ink);font-weight:700;border-bottom-color:var(--jade)}
+
 /* 標題 */
 .head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
 .head h1{font-size:clamp(22px,4vw,28px);font-weight:700}
@@ -251,7 +256,7 @@ const FIREBASE_CONFIG = {
 };
 const ALLOWED_EMAILS = ["a2224907@gmail.com"]; // 允許登入的信箱；可放多個
 // Firestore 集合名稱（Apps Script 通知程式也會讀，要一致）
-const COLL = { groups: "sub_groups", members: "sub_members", settings: "sub_settings", requests: "sub_requests" };
+const COLL = { groups: "sub_groups", members: "sub_members", settings: "sub_settings", requests: "sub_requests", activities: "sub_activity", events: "sub_events" };
 
 const FIREBASE_READY = !String(FIREBASE_CONFIG.apiKey).startsWith("YOUR_");
 const allowList = ALLOWED_EMAILS.filter(e => e && !e.startsWith("YOUR_")).map(e => e.toLowerCase());
@@ -310,11 +315,11 @@ const toTWD = (amt, cur, rate) => cur === "TWD" ? Math.round(amt) : Math.round(a
 const LS_KEY = "subgroup-manager-v1";
 const local = {
   mode: "local",
-  data: { groups: [], members: [], requests: [], settings: null },
+  data: { groups: [], members: [], requests: [], activities: [], events: [], settings: null },
   async start(cb) {
     this.cb = cb;
     try { const raw = localStorage.getItem(LS_KEY); if (raw) this.data = JSON.parse(raw); } catch (e) {}
-    this.data.groups ||= []; this.data.members ||= []; this.data.requests ||= [];
+    this.data.groups ||= []; this.data.members ||= []; this.data.requests ||= []; this.data.activities ||= []; this.data.events ||= [];
     cb(this.data);
   },
   persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(this.data)); } catch (e) {} this.cb(this.data); },
@@ -341,7 +346,7 @@ async function makeFirestore() {
   const au = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
   const app = appMod.initializeApp(FIREBASE_CONFIG);
   const db = fs.getFirestore(app), auth = au.getAuth(app);
-  const data = { groups: [], members: [], requests: [], settings: null };
+  const data = { groups: [], members: [], requests: [], activities: [], events: [], settings: null };
   let unsubs = [], emitCb = null;
   const api = {
     mode: "firebase",
@@ -364,12 +369,14 @@ async function makeFirestore() {
         fs.onSnapshot(fs.collection(db, COLL.groups), snap => { data.groups = snap.docs.map(d => ({ ...d.data(), id: d.id })); emit(); }, onErr),
         fs.onSnapshot(fs.collection(db, COLL.members), snap => { data.members = snap.docs.map(d => ({ ...d.data(), id: d.id })); emit(); }, onErr),
         fs.onSnapshot(fs.collection(db, COLL.requests), snap => { data.requests = snap.docs.map(d => ({ ...d.data(), id: d.id })); emit(); }, onErr),
+        fs.onSnapshot(fs.collection(db, COLL.activities), snap => { data.activities = snap.docs.map(d => ({ ...d.data(), id: d.id })); emit(); }, onErr),
+        fs.onSnapshot(fs.collection(db, COLL.events), snap => { data.events = snap.docs.map(d => ({ ...d.data(), id: d.id })); emit(); }, onErr),
         fs.onSnapshot(fs.doc(db, COLL.settings, "main"), snap => { data.settings = snap.exists() ? snap.data() : null; emit(); }, onErr)
       ];
     },
     stop() {
       unsubs.forEach(u => u()); unsubs = [];
-      data.groups = []; data.members = []; data.requests = []; data.settings = null;
+      data.groups = []; data.members = []; data.requests = []; data.activities = []; data.events = []; data.settings = null;
       if (emitCb) emitCb(data);
     },
     async put(kind, obj) {
@@ -390,7 +397,7 @@ async function makeFirestore() {
 /* =====================================================================
    4. 狀態與計算
    ===================================================================== */
-const state = { groups: [], members: [], requests: [], reqFilter: "pending", settings: { rates: { ...DEFAULT_RATES } }, view: "overview", groupId: null, q: "", filter: "all", mode: "local", user: null, loginMsg: "", open: new Set() };
+const state = { groups: [], members: [], requests: [], activities: [], events: [], reqFilter: "pending", groupSection: "members", logTab: "activity", settings: { rates: { ...DEFAULT_RATES } }, view: "overview", groupId: null, q: "", filter: "all", mode: "local", user: null, loginMsg: "", open: new Set() };
 let store = local;
 
 const mergeSettings = s => ({ rates: { ...DEFAULT_RATES, ...((s && s.rates) || {}) } });
@@ -407,6 +414,20 @@ function dupRef(r) {
   return state.requests.some(o => o.id !== r.id && normRef(o.ref) === k) || state.members.some(m => (m.payments || []).some(p => normRef(p.ref) === k));
 }
 const waLink = n => { const d = String(n || "").replace(/\D/g, ""); return d ? `<a href="https://wa.me/${d}" target="_blank" rel="noopener">${esc(n)}</a>` : "未填"; };
+const eventById = id => state.events.find(x => x.id === id);
+const activitiesOf = gid => state.activities.filter(a => a.groupId === gid).slice().sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+const eventsOf = gid => state.events.filter(x => x.groupId === gid).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
+const ACT_META = {
+  created: { label: "加入群組", cls: "b-ok" }, request_confirmed: { label: "由申請確認加入", cls: "b-ok" },
+  renewed: { label: "續訂", cls: "b-ok" }, archived: { label: "封存", cls: "b-arch" }, unarchived: { label: "還原", cls: "b-ok" },
+  deleted: { label: "刪除", cls: "b-expired" }, reminder: { label: "到期提醒", cls: "b-soon" }
+};
+const EVENT_TYPES = { checkin: "打卡挑戰", discussion: "主題討論", quiz: "小考", other: "其他" };
+/* 寫一筆活動紀錄；失敗只記在主控台，不打斷主要操作 */
+async function logActivity(groupId, member, type, detail) {
+  try { await store.put("activities", { id: uid(), groupId, memberId: member?.id || "", memberName: member?.name || "", type, detail: detail || "", at: new Date().toISOString() }); }
+  catch (e) { console.error("活動紀錄寫入失敗", e); }
+}
 const fmtTs = iso => { const d = new Date(iso); return isNaN(d) ? "" : `${todayStrOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const todayStrOf = d => fmt(d.getFullYear(), d.getMonth() + 1, d.getDate());
 const METHODS = { paypal: { label: "PayPal", ref: "PayPal 交易編號" }, mx_bank: { label: "墨西哥銀行轉帳", ref: "SPEI 追蹤碼" } };
@@ -566,14 +587,13 @@ function viewOverview() {
 }
 
 function viewGroup(g) {
-  const c = countBy(membersOf(g.id));
   const cs = groupCurs(g), pc = primaryCur(g);
   const fees = Object.entries(PLANS).filter(([k]) => cs.some(c => priceOf(g, k, c) > 0)).map(([k, p]) => {
     const parts = cs.filter(c => priceOf(g, k, c) > 0).map(c => `<b>${money(priceOf(g, k, c), c)}</b>`).join(`<span class="sep">/</span>`);
     const approx = !priceOf(g, k, "TWD") && pc !== "TWD" && priceOf(g, k, pc) > 0 ? `<small>約 ${money(toTWD(priceOf(g, k, pc), pc, state.settings.rates[pc] || 1), "TWD")}</small>` : "";
     return `<span class="fee"><em>${p.label}</em>${parts}${approx}</span>`;
   }).join("");
-  const chip = (f, label, warn) => `<button class="chip ${state.filter === f ? "on" : ""} ${warn && c[f] ? "warn" : ""}" data-act="filter" data-f="${f}">${label}<b>${c[f]}</b></button>`;
+  const sec = (s, label) => `<button class="schip ${state.groupSection === s ? "on" : ""}" data-act="gsec" data-s="${s}">${label}</button>`;
 
   $("#main").innerHTML = `<div class="head"><div><h1>${esc(g.name)}${g.public ? `<span class="pubtag">公開訂閱中</span>` : ""}</h1>${g.note ? `<p class="note">${esc(g.note)}</p>` : ""}</div>
       <div class="btns"><button class="btn primary" data-act="new-member">新增成員</button>
@@ -581,12 +601,91 @@ function viewGroup(g) {
       <button class="btn danger" data-act="del-group">刪除群組</button></div></div>
     <div class="fees">${fees || `<span class="hint">尚未設定費用</span>`}</div>
     <p class="summary">這個群組累計收款 ${money(groupTotal(g.id), "TWD")}（含已封存成員）。</p>
-    <div class="tools">
+    <div class="subtabs">${sec("members", "成員")}${sec("log", "活動紀錄")}</div>
+    <div id="gbody"></div>`;
+  renderGroupBody(g);
+}
+
+function renderGroupBody(g) {
+  if (state.groupSection === "log") viewGroupLog(g); else viewGroupMembers(g);
+}
+
+function viewGroupMembers(g) {
+  const c = countBy(membersOf(g.id));
+  const chip = (f, label, warn) => `<button class="chip ${state.filter === f ? "on" : ""} ${warn && c[f] ? "warn" : ""}" data-act="filter" data-f="${f}">${label}<b>${c[f]}</b></button>`;
+  $("#gbody").innerHTML = `<div class="tools">
       <div class="chips">${chip("all", "全部")}${chip("attn", "需處理", true)}${chip("soon", "7 天內")}${chip("ok", "有效")}${chip("arch", "已封存")}</div>
       <input id="q" type="search" placeholder="搜尋姓名、國籍、信箱、WhatsApp" value="${esc(state.q)}" aria-label="搜尋成員">
     </div>
     <div id="list"></div>`;
   renderList();
+}
+
+function viewGroupLog(g) {
+  const tab = (t, label) => `<button class="chip ${state.logTab === t ? "on" : ""}" data-act="logtab" data-t="${t}">${label}</button>`;
+  $("#gbody").innerHTML = `<div class="tools"><div class="chips">${tab("activity", "訂閱動態")}${tab("events", "教學活動")}</div>
+      ${state.logTab === "events" ? `<button class="btn primary sm" data-act="new-event">新增活動</button>` : ""}</div>
+    <div id="logbody"></div>`;
+  renderLogBody(g);
+}
+
+function renderLogBody(g) {
+  const box = $("#logbody");
+  if (state.logTab === "events") {
+    const evs = eventsOf(g.id);
+    box.innerHTML = evs.length ? evs.map(eventCard).join("")
+      : `<div class="empty">這個群組還沒有教學活動記錄。<br><button class="btn primary" data-act="new-event">新增第一筆活動</button></div>`;
+  } else {
+    const acts = activitiesOf(g.id);
+    box.innerHTML = acts.length ? `<div class="list">${acts.map(actRow).join("")}</div>`
+      : `<div class="empty">還沒有訂閱動態。成員的加入、續訂、封存等操作會自動記錄在這裡。</div>`;
+  }
+}
+
+function actRow(a) {
+  const m = ACT_META[a.type] || { label: a.type, cls: "b-ok" };
+  return `<div class="row" style="grid-template-columns:100px minmax(0,1fr) auto">
+    <div><span class="badge ${m.cls}">${m.label}</span></div>
+    <div><b>${esc(a.memberName || "（已刪除的成員）")}</b>${a.detail ? `<span class="sub">${esc(a.detail)}</span>` : ""}</div>
+    <div class="sub" style="text-align:right;white-space:nowrap">${esc(fmtTs(a.at))}</div>
+  </div>`;
+}
+
+function eventCard(e) {
+  return `<div class="req"><div class="req-top"><div><b>${esc(e.title)}</b><span class="sub">${esc(e.date)}　${esc(EVENT_TYPES[e.type] || e.type)}</span></div></div>
+    ${e.desc ? `<p style="margin:8px 0 0">${esc(e.desc).replace(/\n/g, "<br>")}</p>` : ""}
+    <div class="acts" style="margin-top:10px">
+      <button class="btn sm" data-act="edit-event" data-id="${e.id}">編輯</button>
+      <button class="btn sm danger" data-act="del-event" data-id="${e.id}">刪除</button>
+    </div></div>`;
+}
+
+function openEventForm(groupId, eventId) {
+  const editing = eventId ? eventById(eventId) : null;
+  const e = editing || { title: "", date: todayStr(), type: "checkin", desc: "" };
+  openDlg(editing ? "編輯教學活動" : "新增教學活動", `<form id="eform" class="form" autocomplete="off">
+    <label><span class="lbl">標題</span><input name="title" required maxlength="80" value="${esc(e.title)}"></label>
+    <div class="grid2">
+      <label><span class="lbl">日期</span><input name="date" type="date" required value="${esc(e.date)}"></label>
+      <label><span class="lbl">類型</span><select name="type">${Object.entries(EVENT_TYPES).map(([k, l]) => `<option value="${k}" ${k === e.type ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    </div>
+    <label><span class="lbl">說明 <span class="opt">(選填)</span></span><textarea name="desc" rows="3">${esc(e.desc)}</textarea></label>
+    <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">${editing ? "儲存變更" : "新增活動"}</button></div>
+  </form>`);
+  $("#eform").onsubmit = async ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const obj = { ...(editing || { id: uid(), groupId, createdAt: Date.now() }), title: f.elements.title.value.trim(), date: f.elements.date.value, type: f.elements.type.value, desc: f.elements.desc.value.trim() };
+    closeDlg();
+    try { await store.put("events", obj); toast(editing ? "已儲存變更" : "已新增活動"); } catch (err) { console.error(err); toast("儲存失敗"); }
+  };
+}
+
+async function delEvent(id) {
+  const e = eventById(id); if (!e) return;
+  const ok = await confirmBox(`刪除「${e.title}」？`, "這筆教學活動記錄會被永久刪除。", "刪除活動");
+  if (!ok) return;
+  try { await store.remove("events", id); toast("已刪除活動"); } catch (err) { console.error(err); toast("刪除失敗"); }
 }
 
 function reqHTML(r) {
@@ -811,7 +910,12 @@ function openMemberForm(groupId, memberId, opts = {}) {
       obj.payments = [readPay(f, { kind: "first", plan: obj.plan, periodStart: obj.activatedAt, periodEnd: obj.expiresAt, ...(req ? { ref: req.ref, method: req.method } : {}) })];
     } else if (editing.activatedAt !== obj.activatedAt) obj.anchorDay = dayOf(obj.activatedAt);
     closeDlg();
-    try { await store.put("members", obj); if (req) await markReq(req, "confirmed", obj.id); toast(editing ? "已儲存變更" : "已新增成員"); } catch (err) { console.error(err); toast("儲存失敗"); }
+    try {
+      await store.put("members", obj);
+      if (req) { await markReq(req, "confirmed", obj.id); logActivity(groupId, obj, "request_confirmed", `${PLANS[obj.plan].label}方案，到期 ${obj.expiresAt}`); }
+      else if (!editing) logActivity(groupId, obj, "created", `${PLANS[obj.plan].label}方案，到期 ${obj.expiresAt}`);
+      toast(editing ? "已儲存變更" : "已新增成員");
+    } catch (err) { console.error(err); toast("儲存失敗"); }
   };
 }
 
@@ -819,7 +923,7 @@ async function delMember(id) {
   const m = memberById(id);
   const ok = await confirmBox(`刪除成員「${m.name}」？`, "他的付費記錄也會一併刪除，無法復原。只是不續訂的話，建議改用「封存」，收款記錄會保留。", "刪除成員");
   if (!ok) return;
-  try { await store.remove("members", id); toast("已刪除成員"); } catch (e) { console.error(e); toast("刪除失敗"); }
+  try { await store.remove("members", id); logActivity(m.groupId, m, "deleted", ""); toast("已刪除成員"); } catch (e) { console.error(e); toast("刪除失敗"); }
 }
 
 /* ---- 封存 ---- */
@@ -828,13 +932,14 @@ async function archiveMember(id) {
   state.open.delete(id);
   try {
     await store.put("members", { ...m, archived: true, archivedAt: todayStr() });
+    logActivity(m.groupId, m, "archived", "");
     toast(`已封存「${m.name}」`, { label: "復原", fn: () => unarchiveMember(id, true) });
   } catch (e) { console.error(e); toast("封存失敗"); }
 }
 async function unarchiveMember(id, undo) {
   const m = memberById(id); if (!m) return;
   const { archivedAt, ...rest } = m;
-  try { await store.put("members", { ...rest, archived: false }); toast(undo ? "已復原" : `已還原「${m.name}」`); } catch (e) { console.error(e); toast("還原失敗"); }
+  try { await store.put("members", { ...rest, archived: false }); logActivity(m.groupId, m, "unarchived", ""); toast(undo ? "已復原" : `已還原「${m.name}」`); } catch (e) { console.error(e); toast("還原失敗"); }
 }
 
 /* ---- 續訂 ---- */
@@ -883,7 +988,12 @@ function openRenew(id, opts = {}) {
     const { archivedAt, ...base } = m;
     const obj = { ...base, archived: false, plan, expiresAt: exp, paidAt: pay.paidAt, anchorDay: anchorOf(start), payments: [...(m.payments || []), pay] };
     closeDlg();
-    try { await store.put("members", obj); if (req) await markReq(req, "confirmed", m.id); toast(`已續訂，新的到期日 ${exp}`); } catch (err) { console.error(err); toast("續訂失敗"); }
+    try {
+      await store.put("members", obj);
+      if (req) await markReq(req, "confirmed", m.id);
+      logActivity(m.groupId, obj, "renewed", `新到期日 ${exp}`);
+      toast(`已續訂，新的到期日 ${exp}`);
+    } catch (err) { console.error(err); toast("續訂失敗"); }
   };
 }
 
@@ -929,7 +1039,7 @@ function openSettings() {
   };
 }
 function exportJSON() {
-  const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), groups: state.groups, members: state.members, requests: state.requests, settings: state.settings }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), groups: state.groups, members: state.members, requests: state.requests, activities: state.activities, events: state.events, settings: state.settings }, null, 2)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `訂閱群組備份-${todayStr()}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -984,7 +1094,7 @@ const actions = {
     if (!(await confirmBox("刪除這筆申請記錄？", "只會刪除申請本身，不影響已加入的成員。", "刪除"))) return;
     try { await store.remove("requests", id); toast("已刪除"); } catch (e) { console.error(e); toast("刪除失敗"); }
   },
-  "go-group": id => { state.view = "group"; state.groupId = id; state.q = ""; state.filter = "all"; render(); window.scrollTo(0, 0); },
+  "go-group": id => { state.view = "group"; state.groupId = id; state.q = ""; state.filter = "all"; state.groupSection = "members"; state.logTab = "activity"; render(); window.scrollTo(0, 0); },
   "filter": (id, el) => { state.filter = el.dataset.f; renderTabs(); viewGroup(groupById(state.groupId)); },
   "toggle": (id) => {
     const open = !state.open.has(id); open ? state.open.add(id) : state.open.delete(id);
@@ -995,6 +1105,11 @@ const actions = {
   "new-group": () => openGroupForm(),
   "edit-group": () => openGroupForm(state.groupId),
   "del-group": delGroup,
+  "gsec": (id, el) => { state.groupSection = el.dataset.s; renderGroupBody(groupById(state.groupId)); },
+  "logtab": (id, el) => { state.logTab = el.dataset.t; renderLogBody(groupById(state.groupId)); },
+  "new-event": () => openEventForm(state.groupId),
+  "edit-event": id => openEventForm(eventById(id).groupId, id),
+  "del-event": delEvent,
   "new-member": () => openMemberForm(state.groupId),
   "edit-member": id => openMemberForm(memberById(id).groupId, id),
   "del-member": delMember,
@@ -1031,6 +1146,8 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && !$
     state.groups = (data.groups || []).slice();
     state.members = (data.members || []).slice();
     state.requests = (data.requests || []).slice();
+    state.activities = (data.activities || []).slice();
+    state.events = (data.events || []).slice();
     state.settings = mergeSettings(data.settings);
     render();
   };
