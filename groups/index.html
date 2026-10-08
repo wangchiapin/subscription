@@ -33,6 +33,8 @@ h3{font-size:16px;margin:22px 0 8px}
 .pick small{color:var(--soft)}
 .tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--jade-l);color:var(--jade-d);margin-bottom:6px}
 .tag.soon{background:var(--amber-l);color:#7a5a00}
+.tag.wait{background:#FFE4D6;color:#8a3b12}
+.tag.closed{background:#eee;color:#555}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 18px;margin:0 0 22px;scroll-margin-top:12px}
 .card .pos{color:var(--soft);margin:0 0 4px}
 .hook{background:var(--jade-l);border-radius:12px;padding:14px 16px;margin:14px 0}
@@ -74,10 +76,13 @@ const C = {
     title: "Gimnasio de Chino",
     lead: "Dos grupos de práctica en WhatsApp, según tu nivel. Elige el que va contigo.",
     pickBasic: ["Grupo Básico", "Desde cero · mucho acompañamiento"],
-    pickVip: ["Grupo VIP", "Nivel intermedio · alta producción"],
+    pickVip: ["Grupo VIP", "Nivel intermedio · alto acompañamiento"],
     ctaDm: "Mándame un DM en Instagram",
     ctaSignup: "Ya me confirmaste: inscribirme",
     soon: "Próximamente",
+    st: { open: "Inscripciones abiertas", waitlist: "Lista de espera", soon: "Próximamente", closed: "Inscripciones cerradas" },
+    ctaWait: "Escríbeme para entrar en la lista de espera",
+    waitNote: "Por ahora el grupo está lleno. Escríbeme por DM y te anoto en la lista de espera; te aviso en cuanto se libere un lugar.",
     price: "Suscripción", priceNote: "Precio promocional actual, sujeto a aumento en cualquier momento.",
     monthly: "Mensual", bimonthly: "Bimestral", forTwo: "por los dos meses",
     priceSoon: "Precio por anunciar.",
@@ -90,10 +95,18 @@ const C = {
         ["🎙️", "Una microtarea de voz al día", "Cada día publico una microtarea corta para responder con un audio. Quien participa recibe mi corrección."],
         ["🧩", "Nunca solo una lista", "No es solo recibir una palabra o una frase: siempre tienes algo que decir y practicar en voz alta."]
       ],
-      soonNote: "Este grupo todavía no está abierto. Escríbeme por DM para saber cuándo abrimos y te aviso primero."
+      rulesTitle: "⚖️ Reglas del grupo (leer antes de aplicar)",
+      rules: [
+        "<b>La disciplina es el único requisito.</b> Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Participa cada día: solo quien practica recibe mi corrección.",
+        "<b>Practica en chino.</b> Responde las tareas en chino, aunque sea con frases muy cortas. Puedes hacer tus preguntas en español; solo yo uso español para explicar y corregir.",
+        "<b>Cero spam.</b> En este grupo no nos saludamos por saludar, no enviamos mensajes sin sentido y no se toleran comentarios inapropiados.",
+        "<b>Nivel:</b> no necesitas saber nada de chino. Empezamos desde cero.",
+        "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, NO habrá reembolsos bajo ninguna circunstancia (incluso si eres expulsado del grupo por inactividad). Asegúrate de estar 100% listo antes de inscribirte.</span>"
+      ],
+      join: "👉 Mándame un DM en Instagram para confirmar tu lugar. Cupos limitados para asegurar la calidad del acompañamiento."
     },
     vip: {
-      name: "Gimnasio de Chino VIP", pos: "Grupo para estudiantes de nivel intermedio que se sienten estancados (poca guía, mucha producción)",
+      name: "Gimnasio de Chino VIP", pos: "Grupo para estudiantes de nivel intermedio que se sienten estancados (alto acompañamiento, alta producción)",
       hookTitle: "¿Sientes que tu chino se ha estancado? 📉",
       hook: [
         "¿Te quedas en blanco cada vez que intentas hablar? ¿Los demás no entienden lo que dices? ¿No entiendes lo que dicen los nativos? ¿No tienes un entorno adecuado para practicar?",
@@ -134,10 +147,13 @@ const C = {
     title: "中文健身房",
     lead: "兩個 WhatsApp 練習群組，依你的程度選擇適合的。",
     pickBasic: ["零基礎群組", "從零開始・高輔導"],
-    pickVip: ["VIP 高階群組", "中級以上・高產出"],
+    pickVip: ["VIP 高階群組", "中級・高輔導、高產出"],
     ctaDm: "用 Instagram 私訊我",
     ctaSignup: "我已經跟 Ben 確認過：前往報名",
     soon: "即將開放",
+    st: { open: "報名中", waitlist: "候補中", soon: "即將開放", closed: "暫停報名" },
+    ctaWait: "私訊我加入候補名單",
+    waitNote: "目前名額已滿。請私訊我加入候補名單，有空位時我會第一時間通知你。",
     price: "訂閱費用", priceNote: "目前是優惠價，隨時可能調漲。",
     monthly: "月訂", bimonthly: "雙月", forTwo: "兩個月合計",
     priceSoon: "價格即將公布。",
@@ -150,10 +166,18 @@ const C = {
         ["🎙️", "每天一個語音微任務", "每天發布一個簡短的「微型語音打卡任務」，有參加練習的人，我會幫你修正調整。"],
         ["🧩", "不只是給單字", "絕對不會只是單純給你一個單字或一個句子：每次都有要開口說、要練習的內容。"]
       ],
-      soonNote: "這個群組還沒開放。想知道什麼時候開，請私訊我，我會第一時間通知你。"
+      rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
+      rules: [
+        "<b>自律是唯一的條件。</b>付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。請每天參與：有練習的人，我才會幫你修正。",
+        "<b>用中文練習。</b>任務請用中文回答，哪怕只是很短的句子。提問可以用西班牙文；只有我會用西班牙文來解釋和修正。",
+        "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論。",
+        "<b>程度：</b>不需要有任何中文基礎，我們從零開始。",
+        "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況都不退款（包括因為不活躍被移出群組）。報名前請確認自己已經 100% 準備好。</span>"
+      ],
+      join: "👉 請用 Instagram 私訊我，確認你的名額。名額有限，以確保陪伴的品質。"
     },
     vip: {
-      name: "中文健身房 VIP（高階群組）", pos: "給卡關的中級學生（低輔導、高產出）",
+      name: "中文健身房 VIP（高階群組）", pos: "給卡關的中級學生（高輔導、高產出）",
       hookTitle: "覺得自己的中文停滯不前嗎？📉",
       hook: [
         "一開口就腦筋一片空白？別人聽不懂你說的？聽不懂母語人士在說什麼？沒有適合練習的環境？",
@@ -202,6 +226,29 @@ const priceHtml = c => {
   return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${c.priceNote}</p>`;
 };
 
+/* 群組報名狀態：統計頁「卡片開關」分頁設定（portalStatus 的 group-basic / group-vip，state = open / waitlist / soon / closed）*/
+let STATE = { basic: "soon", vip: "open" };
+const STATE_CLASS = { open: "", waitlist: "wait", soon: "soon", closed: "closed" };
+const FB = { apiKey: "AIzaSyCHZz8Hh7m45bJfZC9aK_f_NvUD-aUeuzU", projectId: "subscription-48d3c" };
+async function loadState(){
+  try {
+    const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FB.projectId}/databases/(default)/documents/portalStatus?pageSize=100&key=${FB.apiKey}`);
+    const j = await r.json();
+    (j.documents || []).forEach(d => {
+      const id = d.name.split("/").pop(), st = d.fields && d.fields.state && d.fields.state.stringValue;
+      if (st && ["open", "waitlist", "soon", "closed"].includes(st)) { if (id === "group-basic") STATE.basic = st; if (id === "group-vip") STATE.vip = st; }
+    });
+    render();
+  } catch (e) { /* 讀不到就用預設狀態 */ }
+}
+const pill = (c, k) => `<span class="tag ${STATE_CLASS[STATE[k]]}">${c.st[STATE[k]]}</span>`;
+const ctaBtns = (c, k, withSignup) => {
+  const st = STATE[k];
+  if (st === "closed") return "";
+  const dm = `<a class="btn" href="${IG}" target="_blank" rel="noopener">${st === "waitlist" ? c.ctaWait : c.ctaDm}</a>`;
+  const su = withSignup && (st === "open" || st === "waitlist") ? `<a class="btn ghost" href="${SIGNUP}${LANG === "zh" ? "?lang=zh" : ""}">${c.ctaSignup}</a>` : "";
+  return `<div class="cta">${dm}${su}</div>`;
+};
 let LANG = (new URLSearchParams(location.search).get("lang") || (() => { try { return localStorage.getItem("subLang"); } catch (e) { return null; } })() || "es") === "zh" ? "zh" : "es";
 
 function render(){
@@ -213,21 +260,24 @@ function render(){
     <h1>🏋️ ${c.title}</h1>
     <p class="lead">${c.lead}</p>
     <div class="pick">
-      <a href="#basico"><span class="tag soon">${c.soon}</span><b>${c.pickBasic[0]}</b><small>${c.pickBasic[1]}</small></a>
-      <a href="#vip"><span class="tag">VIP</span><b>${c.pickVip[0]}</b><small>${c.pickVip[1]}</small></a>
+      <a href="#basico">${pill(c, "basic")}<b>${c.pickBasic[0]}</b><small>${c.pickBasic[1]}</small></a>
+      <a href="#vip">${pill(c, "vip")}<b>${c.pickVip[0]}</b><small>${c.pickVip[1]}</small></a>
     </div>
 
     <section class="card" id="basico">
-      <span class="tag soon">${c.soon}</span>
+      ${pill(c, "basic")}
       <h2>${b.name}</h2><p class="pos">${b.pos}</p>
       <div class="hook"><p><strong>${b.tagline}</strong></p></div>
       <h3>${b.howTitle}</h3>${feat(b.how)}
-      <p class="note">${b.soonNote}</p>
-      <div class="cta"><a class="btn" href="${IG}" target="_blank" rel="noopener">${c.ctaDm}</a></div>
+      <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
+      <h3>💰 ${c.price}</h3><p class="note" style="margin-top:0">${c.priceSoon}</p>
+      ${STATE.basic === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
+      <div class="hook" style="margin-top:16px"><p>${b.join}</p></div>
+      ${ctaBtns(c, "basic", false)}
     </section>
 
     <section class="card" id="vip">
-      <span class="tag">VIP</span>
+      ${pill(c, "vip")}
       <h2>${v.name}</h2><p class="pos">${v.pos}</p>
       <div class="hook"><p><strong>${v.hookTitle}</strong></p>${v.hook.map(p => `<p>${p}</p>`).join("")}</div>
       <h3>${v.getTitle}</h3>${feat(v.get)}
@@ -235,8 +285,9 @@ function render(){
       <h3>${v.rulesTitle}</h3><ol class="rules">${v.rules.map(r => `<li>${r}</li>`).join("")}</ol>
       <h3>💰 ${c.price}</h3>${priceHtml(c)}
       <p class="note">${v.screen}</p>
+      ${STATE.vip === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
       <div class="hook" style="margin-top:16px"><p>${v.closing}</p><p>${v.how}</p></div>
-      <div class="cta"><a class="btn" href="${IG}" target="_blank" rel="noopener">${c.ctaDm}</a><a class="btn ghost" href="${SIGNUP}${LANG === "zh" ? "?lang=zh" : ""}">${c.ctaSignup}</a></div>
+      ${ctaBtns(c, "vip", true)}
     </section>
 
     <section class="card faq"><h2>${c.faqTitle}</h2>${c.faq.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join("")}</section>
@@ -247,6 +298,7 @@ document.getElementById("langsw").addEventListener("click", e => {
   LANG = b.dataset.lang; try { localStorage.setItem("subLang", LANG); } catch (x) {} render();
 });
 render();
+loadState();
 
 /* 嘗試取得報名系統裡的最新價格（失敗就維持上面的預設值）*/
 (async () => {
