@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gimnasio de Chino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#F3F5F2; --surface:#fff; --line:#E1E5E0; --ink:#18201C; --soft:#5D6863;
+  --jade:#17795C; --jade-d:#11624A; --jade-l:#E2F3EB; --red:#C62828; --amber-l:#FFF5D6; --amber:#E6C56A;
+  --sans:"Noto Sans TC","Helvetica Neue",Arial,system-ui,sans-serif;
+}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid #F2B84B;outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding:22px 16px 90px}
+.langsw{display:flex;justify-content:flex-end;gap:6px;margin:0 0 8px}
+.langsw button{font:inherit;font-size:14px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.langsw button.on{background:var(--jade);border-color:var(--jade);color:#fff;font-weight:700}
+h1{font-size:28px;line-height:1.25;margin:0 0 8px}
+h2{font-size:20px;margin:0 0 6px}
+h3{font-size:16px;margin:22px 0 8px}
+.lead{margin:0 0 18px;color:var(--soft)}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 24px}
+@media(max-width:460px){.pick{grid-template-columns:1fr}}
+.pick a{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.pick a:hover{border-color:var(--jade)}
+.pick b{display:block;font-size:17px}
+.pick small{color:var(--soft)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--jade-l);color:var(--jade-d);margin-bottom:6px}
+.tag.soon{background:var(--amber-l);color:#7a5a00}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 18px;margin:0 0 22px;scroll-margin-top:12px}
+.card .pos{color:var(--soft);margin:0 0 4px}
+.hook{background:var(--jade-l);border-radius:12px;padding:14px 16px;margin:14px 0}
+.hook p{margin:0 0 8px}.hook p:last-child{margin:0}
+.hook strong{color:var(--jade-d)}
+ul.feat{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.feat li{display:grid;grid-template-columns:28px 1fr;gap:6px}
+ul.feat b{display:block}
+ol.rules{margin:0;padding-left:20px;display:grid;gap:10px}
+.norefund{background:var(--amber-l);border:1px solid var(--amber);border-radius:10px;padding:10px 12px}
+.price{display:grid;gap:6px;margin:6px 0}
+.price div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:6px 0}
+.price b{white-space:nowrap}
+.note{color:var(--soft);font-size:14px;margin:8px 0 0}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.btn{display:inline-block;text-decoration:none;text-align:center;border:1px solid var(--jade);background:var(--jade);color:#fff;font-weight:700;border-radius:12px;padding:12px 18px}
+.btn:hover{background:var(--jade-d)}
+.btn.ghost{background:#fff;color:var(--jade-d)}
+.faq details{border-top:1px solid var(--line);padding:10px 0}
+.faq summary{cursor:pointer;font-weight:700}
+.faq p{margin:8px 0 0;color:var(--soft)}
+.foot{margin-top:24px;color:var(--soft);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="langsw" id="langsw" role="group" aria-label="Idioma / 語言"><button type="button" data-lang="es">Español</button><button type="button" data-lang="zh">中文</button></div>
+  <main id="app"></main>
+</div>
+
+<script>
+const IG = "https://www.instagram.com/cadadiaunosminutos_ben_chino/";
+const SIGNUP = "../";                 // 報名頁（確認過的人才使用）
+const API_URL = "https://script.google.com/macros/s/AKfycbxmg84I5we5h72F2tBjOVfmBVL7jZIQuXEggk1SNxctbxLdA4pmYE9hgSMMyBXlhLXHVQ/exec";
+
+/* ====================== 內容（改文字只要改這裡）====================== */
+const C = {
+  es: {
+    title: "Gimnasio de Chino",
+    lead: "Dos grupos de práctica en WhatsApp, según tu nivel. Elige el que va contigo.",
+    pickBasic: ["Grupo Básico", "Desde cero · mucho acompañamiento"],
+    pickVip: ["Grupo VIP", "Nivel intermedio · alta producción"],
+    ctaDm: "Mándame un DM en Instagram",
+    ctaSignup: "Ya me confirmaste: inscribirme",
+    soon: "Próximamente",
+    price: "Suscripción", priceNote: "Precio promocional actual, sujeto a aumento en cualquier momento.",
+    monthly: "Mensual", bimonthly: "Bimestral", forTwo: "por los dos meses",
+    priceSoon: "Precio por anunciar.",
+    basic: {
+      name: "Gimnasio de Chino Básico", pos: "Grupo para empezar desde cero (alto acompañamiento, microtareas)",
+      tagline: "Acompañamiento diario para crear el hábito de hablar chino todos los días, y ganar confianza.",
+      howTitle: "Cómo funciona",
+      how: [
+        ["🗓️", "Un tema por semana", "Cada semana trabajamos un tema práctico (en el supermercado, pedir direcciones al viajar…), un punto de gramática o un patrón de oración."],
+        ["🎙️", "Una microtarea de voz al día", "Cada día publico una microtarea corta para responder con un audio. Quien participa recibe mi corrección."],
+        ["🧩", "Nunca solo una lista", "No es solo recibir una palabra o una frase: siempre tienes algo que decir y practicar en voz alta."]
+      ],
+      soonNote: "Este grupo todavía no está abierto. Escríbeme por DM para saber cuándo abrimos y te aviso primero."
+    },
+    vip: {
+      name: "Gimnasio de Chino VIP", pos: "Grupo para estudiantes de nivel intermedio que se sienten estancados (poca guía, mucha producción)",
+      hookTitle: "¿Sientes que tu chino se ha estancado? 📉",
+      hook: [
+        "¿Te quedas en blanco cada vez que intentas hablar? ¿Los demás no entienden lo que dices? ¿No entiendes lo que dicen los nativos? ¿No tienes un entorno adecuado para practicar?",
+        "Si quieres romper esa barrera, ya no necesitas solo “estudiar”, sino “entrenar”. <strong>Un entrenamiento casi masoquista.</strong>"
+      ],
+      getTitle: "¿Qué obtendrás en el grupo VIP?",
+      get: [
+        ["🎧", "Entrenamiento de oído", "Al menos 5 audios semanales de un nativo sobre la vida diaria. Y OBLIGATORIAMENTE deberás responder a cada uno de esos audios."],
+        ["📝", "Ejercicios sorpresa", "Publicaré tareas sorpresa durante la semana. Deberás dar tu opinión o seguir las instrucciones, ya sea por texto o por audio."],
+        ["💡", "Q&A ilimitado", "Podrás hacer cualquier pregunta o duda sobre tu aprendizaje del chino en cualquier momento."],
+        ["🎯", "Corrección quirúrgica", "Feedback detallado sobre tu pronunciación, gramática y expresión. Aprenderás a hablar de la forma más natural."],
+        ["🗣️", "1 discusión temática online al mes", "Puede ser una charla casual o un debate en vivo."],
+        ["🔥", "Entorno CERO “fantasmas”", "Estarás rodeado ÚNICAMENTE de compañeros altamente disciplinados y activos."]
+      ],
+      weekly: "Cada semana: una pregunta de discusión avanzada o un análisis a fondo de una transcripción, para que des tu opinión en audios o textos largos sobre temas de actualidad. Una vez al mes: debate en chino.",
+      rulesTitle: "⚖️ Reglas del grupo (leer antes de aplicar)",
+      rules: [
+        "<b>La disciplina es el único requisito.</b> Si no quieres desperdiciar tu suscripción, practica. Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Si quieres ser un fantasma, mejor tira tu dinero al agua.",
+        "<b>Cero español.</b> Prohibido usar cualquier otro idioma que no sea chino. Solo yo usaré español para explicar y corregir.",
+        "<b>Cero spam.</b> En este grupo no nos saludamos por saludar, no enviamos mensajes sin sentido y no se toleran comentarios inapropiados.",
+        "<b>Nivel requerido:</b> este grupo NO es para principiantes absolutos, ni para expertos. Es para ayudar a estudiantes de nivel INTERMEDIO que están estancados.",
+        "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, NO habrá reembolsos bajo ninguna circunstancia (incluso si eres expulsado del grupo por inactividad). Asegúrate de estar 100% listo para el reto antes de inscribirte.</span>"
+      ],
+      screen: "Si al leer esto estás pensando: “¿Ah? ¿Tengo que pagar? ¿Qué caro? ¿De verdad funciona?”… ¡entonces pasa de largo! 👋",
+      closing: "Si estás listo para pagar por sufrir un poco y mejorar rápidamente tu nivel de chino, ¡acepta el reto!",
+      how: "👉 Mándame un DM con un <b>MENSAJE DE VOZ 100 % en chino</b> diciéndome que quieres unirte. Cupos estrictamente limitados para asegurar la calidad del grupo."
+    },
+    faqTitle: "Preguntas frecuentes",
+    faq: [
+      ["¿Cómo me inscribo?", "Primero escríbeme por DM de Instagram (en el VIP, con un mensaje de voz en chino). Cuando confirmemos que el grupo es para ti, te envío el enlace de inscripción para elegir el plan y subir tu comprobante de pago."],
+      ["¿Qué métodos de pago hay?", "PayPal (USD). Para personas en México también hay transferencia bancaria en los planes bimestral y trimestral."],
+      ["¿Hay reembolsos?", "No. Una vez realizado el pago no hay reembolsos, ni siquiera si sales del grupo por inactividad."],
+      ["¿Cuándo me agregan al grupo?", "Reviso tu comprobante y te agrego al grupo de WhatsApp con el número que pusiste en la inscripción. Ten en cuenta que los demás miembros podrán ver ese número."]
+    ],
+    foot: "Cada día unos minutos · Ben"
+  },
+  zh: {
+    title: "中文健身房",
+    lead: "兩個 WhatsApp 練習群組，依你的程度選擇適合的。",
+    pickBasic: ["零基礎群組", "從零開始・高輔導"],
+    pickVip: ["VIP 高階群組", "中級以上・高產出"],
+    ctaDm: "用 Instagram 私訊我",
+    ctaSignup: "我已經跟 Ben 確認過：前往報名",
+    soon: "即將開放",
+    price: "訂閱費用", priceNote: "目前是優惠價，隨時可能調漲。",
+    monthly: "月訂", bimonthly: "雙月", forTwo: "兩個月合計",
+    priceSoon: "價格即將公布。",
+    basic: {
+      name: "中文健身房・零基礎群組", pos: "從零開始的練習群組（高輔導、微任務）",
+      tagline: "陪伴式學習，建立每天開口說中文的習慣與自信。",
+      howTitle: "怎麼進行",
+      how: [
+        ["🗓️", "每週一個主題", "每週設定一個實用主題（例如：超市購物、旅遊問路），或是一個語法點、一個句型。"],
+        ["🎙️", "每天一個語音微任務", "每天發布一個簡短的「微型語音打卡任務」，有參加練習的人，我會幫你修正調整。"],
+        ["🧩", "不只是給單字", "絕對不會只是單純給你一個單字或一個句子：每次都有要開口說、要練習的內容。"]
+      ],
+      soonNote: "這個群組還沒開放。想知道什麼時候開，請私訊我，我會第一時間通知你。"
+    },
+    vip: {
+      name: "中文健身房 VIP（高階群組）", pos: "給卡關的中級學生（低輔導、高產出）",
+      hookTitle: "覺得自己的中文停滯不前嗎？📉",
+      hook: [
+        "一開口就腦筋一片空白？別人聽不懂你說的？聽不懂母語人士在說什麼？沒有適合練習的環境？",
+        "如果你想突破這道牆，你需要的不只是「學習」，而是「訓練」。<strong>一種近乎自虐的訓練。</strong>"
+      ],
+      getTitle: "在 VIP 群組你會得到什麼？",
+      get: [
+        ["🎧", "聽力訓練", "每週至少 5 則母語人士的日常生活語音，而且你「必須」回覆每一則。"],
+        ["📝", "突擊練習", "週間我會隨時發布突擊作業，你要用文字或語音表達看法或照著指示完成。"],
+        ["💡", "無限提問", "關於中文學習的任何問題，隨時都可以問。"],
+        ["🎯", "精準修正", "針對發音、文法和表達給你詳細回饋，學會最自然的說法。"],
+        ["🗣️", "每月 1 次線上主題討論", "可以是輕鬆聊天，也可以是現場辯論。"],
+        ["🔥", "零「幽靈」環境", "你身邊「只會」有高度自律、積極活躍的同伴。"]
+      ],
+      weekly: "每週發布一個進階討論題，或逐字稿深度解析，讓你針對時事或特定主題，用長段落語音或文字發表看法。每月一次中文辯論。",
+      rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
+      rules: [
+        "<b>自律是唯一的條件。</b>不想浪費訂閱費，就要練習。付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。想當幽靈的話，不如把錢丟進水裡。",
+        "<b>不說西班牙文。</b>除了中文，不可以使用其他語言。只有我會用西班牙文來解釋和修正。",
+        "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論。",
+        "<b>程度要求：</b>這個群組不是給完全的初學者，也不是給高手。是為了幫助卡關的「中級」學生。",
+        "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況都不退款（包括因為不活躍被移出群組）。報名前請確認自己已經 100% 準備好接受挑戰。</span>"
+      ],
+      screen: "如果你讀到這裡心裡想：「啊？還要付錢？好貴？真的有用嗎？」……那請直接滑過去吧！👋",
+      closing: "如果你準備好為了「吃一點苦」而付費、快速提升中文程度，就接受挑戰吧！",
+      how: "👉 請傳一則「<b>100 % 中文的語音訊息</b>」私訊我，告訴我你想加入。名額嚴格限制，以確保群組品質。"
+    },
+    faqTitle: "常見問題",
+    faq: [
+      ["怎麼報名？", "請先用 Instagram 私訊我（VIP 群組請傳一則中文語音訊息）。確認這個群組適合你之後，我會把報名連結給你，讓你選方案並上傳付款憑證。"],
+      ["有哪些付款方式？", "PayPal（美金）。墨西哥的朋友在雙月、季方案也可以用銀行轉帳。"],
+      ["可以退款嗎？", "不可以。付款後一律不退款，即使因為不活躍而離開群組也一樣。"],
+      ["什麼時候會被加進群組？", "我核對你的付款憑證後，會用你報名時填的號碼把你加進 WhatsApp 群組。請注意，其他成員看得到這個號碼。"]
+    ],
+    foot: "每天一分鐘 · Ben"
+  }
+};
+
+/* 價格：預設值是文案上的價格；能連上報名系統時，改用系統裡的最新價格 */
+let PRICES = { monthly: { MXN: 100, USD: 7 }, bimonthly: { MXN: 180, USD: 13 } };
+const fmt = (n, c) => c === "MXN" ? `$${n} MXN` : `US$ ${n}`;
+const priceHtml = c => {
+  const row = (k, extra) => { const p = PRICES[k]; if (!p) return "";
+    const parts = ["MXN", "USD"].filter(x => p[x] > 0).map(x => fmt(p[x], x)).join(" / ");
+    return parts ? `<div><span>${c[k]}${extra ? " <small>(" + extra + ")</small>" : ""}</span><b>${parts}</b></div>` : ""; };
+  return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${c.priceNote}</p>`;
+};
+
+let LANG = (new URLSearchParams(location.search).get("lang") || (() => { try { return localStorage.getItem("subLang"); } catch (e) { return null; } })() || "es") === "zh" ? "zh" : "es";
+
+function render(){
+  const c = C[LANG], b = c.basic, v = c.vip;
+  document.documentElement.lang = LANG; document.title = c.title;
+  document.querySelectorAll("#langsw [data-lang]").forEach(x => x.classList.toggle("on", x.dataset.lang === LANG));
+  const feat = list => `<ul class="feat">${list.map(([i, t, d]) => `<li><span aria-hidden="true">${i}</span><div><b>${t}</b>${d}</div></li>`).join("")}</ul>`;
+  document.getElementById("app").innerHTML = `
+    <h1>🏋️ ${c.title}</h1>
+    <p class="lead">${c.lead}</p>
+    <div class="pick">
+      <a href="#basico"><span class="tag soon">${c.soon}</span><b>${c.pickBasic[0]}</b><small>${c.pickBasic[1]}</small></a>
+      <a href="#vip"><span class="tag">VIP</span><b>${c.pickVip[0]}</b><small>${c.pickVip[1]}</small></a>
+    </div>
+
+    <section class="card" id="basico">
+      <span class="tag soon">${c.soon}</span>
+      <h2>${b.name}</h2><p class="pos">${b.pos}</p>
+      <div class="hook"><p><strong>${b.tagline}</strong></p></div>
+      <h3>${b.howTitle}</h3>${feat(b.how)}
+      <p class="note">${b.soonNote}</p>
+      <div class="cta"><a class="btn" href="${IG}" target="_blank" rel="noopener">${c.ctaDm}</a></div>
+    </section>
+
+    <section class="card" id="vip">
+      <span class="tag">VIP</span>
+      <h2>${v.name}</h2><p class="pos">${v.pos}</p>
+      <div class="hook"><p><strong>${v.hookTitle}</strong></p>${v.hook.map(p => `<p>${p}</p>`).join("")}</div>
+      <h3>${v.getTitle}</h3>${feat(v.get)}
+      <p class="note">${v.weekly}</p>
+      <h3>${v.rulesTitle}</h3><ol class="rules">${v.rules.map(r => `<li>${r}</li>`).join("")}</ol>
+      <h3>💰 ${c.price}</h3>${priceHtml(c)}
+      <p class="note">${v.screen}</p>
+      <div class="hook" style="margin-top:16px"><p>${v.closing}</p><p>${v.how}</p></div>
+      <div class="cta"><a class="btn" href="${IG}" target="_blank" rel="noopener">${c.ctaDm}</a><a class="btn ghost" href="${SIGNUP}${LANG === "zh" ? "?lang=zh" : ""}">${c.ctaSignup}</a></div>
+    </section>
+
+    <section class="card faq"><h2>${c.faqTitle}</h2>${c.faq.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join("")}</section>
+    <p class="foot">${c.foot}</p>`;
+}
+document.getElementById("langsw").addEventListener("click", e => {
+  const b = e.target.closest("[data-lang]"); if (!b || b.dataset.lang === LANG) return;
+  LANG = b.dataset.lang; try { localStorage.setItem("subLang", LANG); } catch (x) {} render();
+});
+render();
+
+/* 嘗試取得報名系統裡的最新價格（失敗就維持上面的預設值）*/
+(async () => {
+  try {
+    const u = new URL(API_URL); u.searchParams.set("action", "groups");
+    const r = await (await fetch(u.toString())).json();
+    const g = (r.groups || []).find(x => /vip/i.test(x.name || ""));
+    if (!g || !g.priceTable) return;
+    const t = g.priceTable, next = {};
+    ["monthly", "bimonthly"].forEach(k => { const o = {}; ["MXN", "USD"].forEach(cur => { if (t[cur] && Number(t[cur][k]) > 0) o[cur] = Number(t[cur][k]); }); if (Object.keys(o).length) next[k] = o; });
+    if (Object.keys(next).length) { PRICES = next; render(); }
+  } catch (e) { /* 維持預設價格 */ }
+})();
+</script>
+</body>
+</html>

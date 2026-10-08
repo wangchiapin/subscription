@@ -97,6 +97,7 @@ input[type=file]{position:absolute;left:-9999px}
   <div class="langsw" id="langsw" role="group" aria-label="Idioma / 語言"><button type="button" data-lang="es">Español</button><button type="button" data-lang="zh">中文</button></div>
   <h1>Suscripción</h1>
   <p class="lead">Completa tus datos y realiza el pago. Revisaremos tu comprobante y te agregaremos al grupo.</p>
+  <p class="lead" style="margin-top:-8px"><a href="groups/" id="introLink" style="color:var(--jade-d)">Ver la presentación de los grupos</a></p>
   <div id="demo" class="demo" hidden>Modo demostración: la página todavía no está conectada, así que no se envía nada.</div>
 
   <ol class="steps" id="steps">
@@ -271,6 +272,7 @@ const ZH = {
   "Revisaremos tu pago y te agregaremos al grupo. Te contactaremos al correo": "我們會核對你的付款並把你加入群組，並以電子郵件聯絡你：",
   ".": "。", "Tu referencia:": "你的申請編號：",
   "Tus datos y tu comprobante solo se usan para gestionar tu suscripción.": "你的資料和付款憑證只用於管理你的訂閱。",
+  "Ver la presentación de los grupos": "先看看群組介紹",
   "Vista previa de tu captura": "截圖預覽"
 };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -292,6 +294,7 @@ function translateStatic(){
   document.querySelectorAll("img[alt]").forEach(i => { if (!i.dataset.altEs) i.dataset.altEs = i.alt; i.alt = tr(i.dataset.altEs); });
   document.querySelectorAll("[data-k]").forEach(el => { el.textContent = el.dataset.k ? (VZH[el.dataset.k] && LANG === "zh" ? VZH[el.dataset.k] : tr(el.dataset.k)) : ""; });
   document.title = tr("Suscripción");
+  { const a = document.getElementById("introLink"); if (a) a.href = "groups/" + (LANG === "zh" ? "?lang=zh" : ""); }
 }
 const pad = n => String(n).padStart(2, "0");
 const nowLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
