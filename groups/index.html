@@ -92,12 +92,20 @@ const C = {
       howTitle: "Cómo funciona",
       how: [
         ["🗓️", "Un tema por semana", "Cada semana trabajamos un tema práctico (en el supermercado, pedir direcciones al viajar…), un punto de gramática o un patrón de oración."],
-        ["🎙️", "Una microtarea de voz al día", "Cada día publico una microtarea corta para responder con un audio. Quien participa recibe mi corrección."],
+        ["🎙️", "Una microtarea de voz de lunes a viernes", "Cada día hábil publico una microtarea corta para responder con un audio, y puedes recibir correcciones. Los fines de semana descansamos."],
         ["🧩", "Nunca solo una lista", "No es solo recibir una palabra o una frase: siempre tienes algo que decir y practicar en voz alta."]
+      ],
+      weekTitle: "Un ejemplo de semana",
+      week: [
+        ["Lun", "Escucha y repite", "Escuchas el modelo y lo repites en voz alta."],
+        ["Mar", "Sustituye", "Cambias una parte de la frase para decir algo propio."],
+        ["Mié", "Comprensión auditiva", "Escuchas un audio corto y respondes."],
+        ["Jue", "Mini diálogo", "Completas un diálogo corto del tema."],
+        ["Vie", "Ahora hablas tú", "Dices con tus palabras algo sobre el tema de la semana."]
       ],
       rulesTitle: "⚖️ Reglas del grupo (leer antes de aplicar)",
       rules: [
-        "<b>La disciplina es el único requisito.</b> Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Participa cada día: solo quien practica recibe mi corrección.",
+        "<b>La disciplina es el único requisito.</b> Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Cuantas más tareas hagas, más puedo ayudarte: las correcciones son para quien practica.",
         "<b>Practica en chino.</b> Responde las tareas en chino, aunque sea con frases muy cortas. Puedes hacer tus preguntas en español; solo yo uso español para explicar y corregir.",
         "<b>Cero spam.</b> En este grupo no nos saludamos por saludar, no enviamos mensajes sin sentido y no se toleran comentarios inapropiados.",
         "<b>Nivel:</b> no necesitas saber nada de chino. Empezamos desde cero.",
@@ -163,12 +171,20 @@ const C = {
       howTitle: "在群組，我們要做什麼?",
       how: [
         ["🗓️", "主題練習", "每週設定一個實用主題（例如：買東西），或是一個語法點，或是一個句型。"],
-        ["🎙️", "語音微任務", "每天發布一個簡短的「微型語音任務」，有參加練習的人，我會幫你修正調整。"],
+        ["🎙️", "語音微任務（週一到週五）", "每個工作日發布一個簡短的「微型語音任務」，你可以得到修正。週末休息。"],
         ["🧩", "不只是給單字", "絕對不會只是單純給你一個單字或一個句子：每次都有要開口說、要練習的內容。"]
+      ],
+      weekTitle: "一週的節奏（範例）",
+      week: [
+        ["週一", "聽和跟讀", "聽示範，開口跟著念。"],
+        ["週二", "替換練習", "換掉句子的一部分，說出屬於自己的句子。"],
+        ["週三", "聽力", "聽一段短音檔，回答問題。"],
+        ["週四", "小對話", "完成與本週主題相關的短對話。"],
+        ["週五", "自己說", "用自己的話說說這週的主題。"]
       ],
       rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
       rules: [
-        "<b>自律是唯一的條件。</b>付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。請每天參與：有練習的人，我才會幫你修正。",
+        "<b>自律是唯一的條件。</b>付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。多練習，我就能幫你更多：修正是給有開口練習的人。",
         "<b>用中文練習。</b>任務請用中文回答，哪怕只是很短的句子。提問可以用西班牙文；只有我會用西班牙文來解釋和修正。",
         "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論。",
         "<b>程度：</b>不需要有任何中文基礎，我們從零開始。",
@@ -269,6 +285,7 @@ function render(){
       <h2>${b.name}</h2><p class="pos">${b.pos}</p>
       <div class="hook"><p><strong>${b.tagline}</strong></p></div>
       <h3>${b.howTitle}</h3>${feat(b.how)}
+      <h3>📅 ${b.weekTitle}</h3>${feat(b.week.map(([d,t,x]) => ["▫️", d + " · " + t, x]))}
       <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
       <h3>💰 ${c.price}</h3><p class="note" style="margin-top:0">${c.priceSoon}</p>
       ${STATE.basic === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
