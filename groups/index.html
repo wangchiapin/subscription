@@ -56,6 +56,12 @@ ol.rules{margin:0;padding-left:20px;display:grid;gap:10px}
 .faq details{border-top:1px solid var(--line);padding:10px 0}
 .faq summary{cursor:pointer;font-weight:700}
 .faq p{margin:8px 0 0;color:var(--soft)}
+.me{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin:0 0 22px}
+.me p{margin:0 0 8px}.me p:first-child{font-weight:700;font-size:17px}
+.igrow{display:flex;align-items:center;gap:12px;margin-top:12px}
+.igbtn{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--jade);color:#fff}
+.igbtn:hover{background:var(--jade-d)}
+.igbtn svg{width:26px;height:26px}
 .foot{margin-top:24px;color:var(--soft);font-size:13px;text-align:center}
 </style>
 </head>
@@ -77,6 +83,8 @@ const C = {
     lead: "Dos grupos de práctica en WhatsApp, según tu nivel. Elige el que va contigo.",
     pickBasic: ["Grupo Básico", "Desde cero · mucho acompañamiento"],
     pickVip: ["Grupo VIP", "Nivel intermedio · alto acompañamiento"],
+    intro: ["Soy Benjamín, profesor de chino de Taiwán.", "Tengo casi cinco años de experiencia enseñando chino en línea y más de 2,600 clases impartidas. Todos mis alumnos son hispanohablantes, así que conozco muy bien dónde suelen atascarse.", "Este grupo es mi método de siempre, convertido en pequeñas tareas para practicar cada día."],
+    igText: "¿No sabes quién soy? ¡Ven a conocerme!",
     ctaDm: "Mándame un DM en Instagram",
     ctaSignup: "Ya me confirmaste: inscribirme",
     soon: "Próximamente",
@@ -87,31 +95,33 @@ const C = {
     monthly: "Mensual", bimonthly: "Bimestral", forTwo: "por los dos meses",
     priceSoon: "Precio por anunciar.",
     basic: {
-      name: "Gimnasio de Chino Básico", pos: "Grupo para empezar desde cero (alto acompañamiento, microtareas)",
-      tagline: "Acompañamiento diario para crear el hábito de hablar chino todos los días, y ganar confianza.",
-      howTitle: "Cómo funciona",
+      name: "Gimnasio de Chino Básico", pos: "Para empezar desde cero: no necesitas saber nada de chino",
+      tagline: "Acompañamiento diario para que tomes el hábito de hablar chino todos los días, con confianza, y vayas construyendo tu base poco a poco.",
+      howTitle: "¿Qué hacemos en el grupo?",
       how: [
-        ["🗓️", "Un tema por semana", "Cada semana trabajamos un tema práctico (en el supermercado, pedir direcciones al viajar…), un punto de gramática o un patrón de oración."],
-        ["🎙️", "Una microtarea de voz de lunes a viernes", "Cada día hábil publico una microtarea corta para responder con un audio, y puedes recibir correcciones. Los fines de semana descansamos."],
-        ["🧩", "Nunca solo una lista", "No es solo recibir una palabra o una frase: siempre tienes algo que decir y practicar en voz alta."]
+        ["🗓️", "Práctica por temas", "Cada semana trabajamos un tema útil de la vida diaria (por ejemplo, comprar algo), un punto de gramática o una estructura clave, para construir tu chino desde cero. Nunca te doy una palabra o una frase suelta para dejarte solo."],
+        ["🎙️", "Microtarea de voz (lunes a viernes)", "Cada día hábil, una microtarea corta en audio. Solo necesitas de 5 a 10 minutos, la haces cuando te venga bien y puedes recibir correcciones. Los fines de semana descansamos."],
+        ["🔤", "Pinyin y pronunciación", "Todo el material lleva pinyin, y de vez en cuando hacemos explicaciones de pronunciación para que pronuncies cada vez mejor."],
+        ["💬", "Mini ejercicios durante la semana", "Publico pequeños ejercicios o explicaciones en cualquier momento, para que estés rodeado de chino todo el día."]
       ],
       weekTitle: "Un ejemplo de semana",
       week: [
-        ["Lun", "Escucha y repite", "Escuchas el modelo y lo repites en voz alta."],
-        ["Mar", "Sustituye", "Cambias una parte de la frase para decir algo propio."],
-        ["Mié", "Comprensión auditiva", "Escuchas un audio corto y respondes."],
-        ["Jue", "Mini diálogo", "Completas un diálogo corto del tema."],
-        ["Vie", "Ahora hablas tú", "Dices con tus palabras algo sobre el tema de la semana."]
+        ["Lun", "Aprender y entender", "Publico la gramática o estructura clave del tema, con explicación detallada."],
+        ["Mar", "Escuchar y repetir", "Escuchas el audio modelo e imitas la entonación en voz alta."],
+        ["Mié", "Sustitución", "Cambias palabras de la frase para crear tus propias frases útiles."],
+        ["Jue", "Comprensión auditiva", "Un texto corto del tema para que te acostumbres a la voz de un nativo."],
+        ["Vie", "Ahora hablas tú", "Expresas con tus propias palabras lo que aprendiste esta semana."]
       ],
       rulesTitle: "⚖️ Reglas del grupo (leer antes de aplicar)",
       rules: [
-        "<b>La disciplina es el único requisito.</b> Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Cuantas más tareas hagas, más puedo ayudarte: las correcciones son para quien practica.",
-        "<b>Practica en chino.</b> Responde las tareas en chino, aunque sea con frases muy cortas. Puedes hacer tus preguntas en español; solo yo uso español para explicar y corregir.",
-        "<b>Cero spam.</b> En este grupo no nos saludamos por saludar, no enviamos mensajes sin sentido y no se toleran comentarios inapropiados.",
-        "<b>Nivel:</b> no necesitas saber nada de chino. Empezamos desde cero.",
-        "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, NO habrá reembolsos bajo ninguna circunstancia (incluso si eres expulsado del grupo por inactividad). Asegúrate de estar 100% listo antes de inscribirte.</span>"
+        "<b>La constancia es el único requisito.</b> Tu pago te da acceso a mi guía y mis recursos. Cuanto más practiques, más puedo ayudarte: las correcciones son para quien participa.",
+        "<b>Practica en chino.</b> Responde las tareas en chino, aunque sean frases muy cortas. En el grupo usamos principalmente chino simplificado. Puedes hacer tus preguntas en español (por escrito, no en audio); solo yo uso español para explicar y corregir.",
+        "<b>Un grupo limpio.</b> Sin saludos sueltos tipo “buenos días”, sin mensajes sin sentido y sin comentarios inapropiados.",
+        "<b>Nivel:</b> no necesitas saber nada de chino; empezamos desde cero. Solo tienes que poder dedicar de 5 a 10 minutos al día.",
+        "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, no hay reembolsos bajo ninguna circunstancia. Asegúrate de estar 100% listo antes de inscribirte.</span>"
       ],
-      join: "👉 Mándame un DM en Instagram para confirmar tu lugar. Cupos limitados para asegurar la calidad del acompañamiento."
+      priceNote: "Mensual: unos 5 MXN al día (≈ US$0.30), menos que un café. Precio promocional, puede subir en cualquier momento.",
+      join: "👉 Mándame un DM en Instagram para confirmar tu lugar. Cupos limitados para asegurar la calidad del acompañamiento y las correcciones."
     },
     vip: {
       name: "Gimnasio de Chino VIP", pos: "Grupo para estudiantes de nivel intermedio que se sienten estancados (alto acompañamiento, alta producción)",
@@ -133,7 +143,7 @@ const C = {
       rulesTitle: "⚖️ Reglas del grupo (leer antes de aplicar)",
       rules: [
         "<b>La disciplina es el único requisito.</b> Si no quieres desperdiciar tu suscripción, practica. Pagar te da acceso a mi guía y recursos, pero “NO compra tu derecho a ser un estudiante pasivo”. Si quieres ser un fantasma, mejor tira tu dinero al agua.",
-        "<b>Cero español.</b> Prohibido usar cualquier otro idioma que no sea chino. Solo yo usaré español para explicar y corregir.",
+        "<b>Cero español.</b> Prohibido usar cualquier otro idioma que no sea chino. En el grupo usamos principalmente chino simplificado. Solo yo usaré español para explicar y corregir.",
         "<b>Cero spam.</b> En este grupo no nos saludamos por saludar, no enviamos mensajes sin sentido y no se toleran comentarios inapropiados.",
         "<b>Nivel requerido:</b> este grupo NO es para principiantes absolutos, ni para expertos. Es para ayudar a estudiantes de nivel INTERMEDIO que están estancados.",
         "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, NO habrá reembolsos bajo ninguna circunstancia (incluso si eres expulsado del grupo por inactividad). Asegúrate de estar 100% listo para el reto antes de inscribirte.</span>"
@@ -145,7 +155,7 @@ const C = {
     faqTitle: "Preguntas frecuentes",
     faq: [
       ["¿Cómo me inscribo?", "Primero escríbeme por DM de Instagram (en el VIP, con un mensaje de voz en chino). Cuando confirmemos que el grupo es para ti, te envío el enlace de inscripción para elegir el plan y subir tu comprobante de pago."],
-      ["¿Qué métodos de pago hay?", "PayPal (USD). Para personas en México también hay transferencia bancaria en los planes bimestral y trimestral."],
+      ["¿Qué métodos de pago hay?", "PayPal (USD). Para personas en México también hay transferencia bancaria (SPEI); los datos de la cuenta te los envío por DM."],
       ["¿Hay reembolsos?", "No. Una vez realizado el pago no hay reembolsos, ni siquiera si sales del grupo por inactividad."],
       ["¿Cuándo me agregan al grupo?", "Reviso tu comprobante y te agrego al grupo de WhatsApp con el número que pusiste en la inscripción. Ten en cuenta que los demás miembros podrán ver ese número."]
     ],
@@ -156,6 +166,8 @@ const C = {
     lead: "依你的程度選擇適合的群組",
     pickBasic: ["零基礎群組", "從零開始・高輔導"],
     pickVip: ["VIP 高階群組", "中級・高輔導、高產出"],
+    intro: ["我是 Benjamín，來自台灣的華語老師。", "我有近五年的線上華語教學經驗，累計超過 2,600 節課。我的學生都是以西班牙語為母語的中文學習者，所以我很清楚你們學中文時最容易卡在哪裡。", "這個群組，就是把我平常帶學生的方法，變成每天都能練習的小任務。"],
+    igText: "不知道我是誰嗎？來看看我吧！",
     ctaDm: "用 Instagram 私訊我",
     ctaSignup: "我已經跟 Ben 確認過：前往報名",
     soon: "即將開放",
@@ -170,27 +182,29 @@ const C = {
       tagline: "陪伴式學習，建立每天開口說中文的習慣與自信，一點一點奠定你的中文基礎。",
       howTitle: "在群組，我們要做什麼?",
       how: [
-        ["🗓️", "主題練習", "每週設定一個實用主題（例如：買東西），或是一個語法點，或是一個句型。"],
-        ["🎙️", "語音微任務（週一到週五）", "每個工作日發布一個簡短的「微型語音任務」，你可以得到修正。週末休息。"],
-        ["🧩", "不只是給單字", "絕對不會只是單純給你一個單字或一個句子：每次都有要開口說、要練習的內容。"]
+        ["🗓️", "主題練習", "每週一個實用主題（例如：買東西）、語法點或核心句型，從 0 一步步建立你的中文。絕對不會隨便給你一個單字或句子就放你不管。"],
+        ["🎙️", "語音微任務（週一到週五）", "每個工作日一個簡短的微型語音任務。每天只需 5 到 10 分鐘，隨時完成就能得到修正。週末休息。"],
+        ["🔤", "拼音與發音", "所有內容都附拼音，並且不定時加入發音講解，幫你把音念得越來越準。"],
+        ["💬", "週間小練習", "週間不定時發布小練習或教學，讓你隨時沉浸在中文的環境裡。"]
       ],
       weekTitle: "一週的節奏（範例）",
       week: [
-        ["週一", "聽和跟讀", "聽示範，開口跟著念。"],
-        ["週二", "替換練習", "換掉句子的一部分，說出屬於自己的句子。"],
-        ["週三", "聽力", "聽一段短音檔，回答問題。"],
-        ["週四", "小對話", "完成與本週主題相關的短對話。"],
-        ["週五", "自己說", "用自己的話說說這週的主題。"]
+        ["週一", "學習跟理解", "發布主題相關的語法點或核心句型，附有詳細解釋。"],
+        ["週二", "聽和跟讀", "聽示範音檔，模仿語調開口跟著念。"],
+        ["週三", "替換練習", "換掉句子部分單字，說出屬於你自己的實用句子。"],
+        ["週四", "聽力練習", "發布主題短文，練習聽母語者的聲音。"],
+        ["週五", "自己說", "用自己的話完整說出這週學到的主題。"]
       ],
       rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
       rules: [
-        "<b>自律是唯一的條件。</b>付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。多練習，我就能幫你更多：修正是給有開口練習的人。",
-        "<b>用中文練習。</b>任務請用中文回答，哪怕只是很短的句子。提問可以用西班牙文；只有我會用西班牙文來解釋和修正。",
-        "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論。",
-        "<b>程度：</b>不需要有任何中文基礎，我們從零開始。",
-        "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況都不退款（包括因為不活躍被移出群組）。報名前請確認自己已經 100% 準備好。</span>"
+        "<b>自律是唯一的條件：</b>付費讓你取得我的指導和資源。多練習，我就能幫你更多；修正是給有開口練習的人。",
+        "<b>用中文練習：</b>任務請用中文回答，很短的句子也可以。群組內以簡體中文為主。提問可以用西班牙文（請打字，不要發語音）；只有我會用西班牙文來解釋和修正。",
+        "<b>保持群組乾淨：</b>請不要只發「早安、你好」這類問候，也不要發沒有意義的訊息或不當言論。",
+        "<b>程度：</b>不需要有任何中文基礎，我們從零開始。你只需要準備好每天花 5 到 10 分鐘。",
+        "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況均不退款。報名前請確認自己已經準備好。</span>"
       ],
-      join: "👉 請用 Instagram 私訊我，確認你的名額。名額有限，以確保陪伴的品質。"
+      priceNote: "月訂約每天 5 MXN（約 US$0.30），比一杯咖啡還少。現在是優惠價格，隨時可能調漲。",
+      join: "👉 請用 Instagram 私訊我，確認你的名額。名額有限，以確保陪伴與修正的品質。"
     },
     vip: {
       name: "中文健身房 VIP（高階群組）", pos: "給卡關的中級學生（高輔導、高產出）",
@@ -212,7 +226,7 @@ const C = {
       rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
       rules: [
         "<b>自律是唯一的條件。</b>不想浪費訂閱費，就要練習。付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。想當幽靈的話，不如把錢丟進水裡。",
-        "<b>不說西班牙文。</b>除了中文，不可以使用其他語言。只有我會用西班牙文來解釋和修正。",
+        "<b>不說西班牙文。</b>除了中文，不可以使用其他語言。群組內以簡體中文為主。只有我會用西班牙文來解釋和修正。群組內以簡體中文為主。",
         "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論。",
         "<b>程度要求：</b>這個群組不是給完全的初學者，也不是給高手。是為了幫助卡關的「中級」學生。",
         "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況都不退款（包括因為不活躍被移出群組）。報名前請確認自己已經 100% 準備好接受挑戰。</span>"
@@ -224,7 +238,7 @@ const C = {
     faqTitle: "常見問題",
     faq: [
       ["怎麼報名？", "請先用 Instagram 私訊我（VIP 群組請傳一則中文語音訊息）。確認這個群組適合你之後，我會把報名連結給你，讓你選方案並上傳付款憑證。"],
-      ["有哪些付款方式？", "PayPal（美金）。墨西哥的朋友在雙月、季方案也可以用銀行轉帳。"],
+      ["有哪些付款方式？", "PayPal（美金）。墨西哥的朋友也可以用銀行轉帳（SPEI），帳號資料我會用私訊給你。"],
       ["可以退款嗎？", "不可以。付款後一律不退款，即使因為不活躍而離開群組也一樣。"],
       ["什麼時候會被加進群組？", "我核對你的付款憑證後，會用你報名時填的號碼把你加進 WhatsApp 群組。請注意，其他成員看得到這個號碼。"]
     ],
@@ -233,13 +247,14 @@ const C = {
 };
 
 /* 價格：預設值是文案上的價格；能連上報名系統時，改用系統裡的最新價格 */
-let PRICES = { monthly: { MXN: 100, USD: 7 }, bimonthly: { MXN: 180, USD: 13 } };
+let PRICES = { monthly: { MXN: 300, USD: 18 }, bimonthly: { MXN: 550, USD: 35 } };
+const PRICES_BASIC = { monthly: { MXN: 150, USD: 9 }, bimonthly: { MXN: 280, USD: 17 } };
 const fmt = (n, c) => c === "MXN" ? `$${n} MXN` : `US$ ${n}`;
-const priceHtml = c => {
-  const row = (k, extra) => { const p = PRICES[k]; if (!p) return "";
+const priceHtml = (c, P = PRICES, note = c.priceNote) => {
+  const row = (k, extra) => { const p = P[k]; if (!p) return "";
     const parts = ["MXN", "USD"].filter(x => p[x] > 0).map(x => fmt(p[x], x)).join(" / ");
     return parts ? `<div><span>${c[k]}${extra ? " <small>(" + extra + ")</small>" : ""}</span><b>${parts}</b></div>` : ""; };
-  return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${c.priceNote}</p>`;
+  return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${note}</p>`;
 };
 
 /* 群組報名狀態：統計頁「卡片開關」分頁設定（portalStatus 的 group-basic / group-vip，state = open / waitlist / soon / closed）*/
@@ -275,6 +290,9 @@ function render(){
   document.getElementById("app").innerHTML = `
     <h1>🏋️ ${c.title}</h1>
     <p class="lead">${c.lead}</p>
+    <section class="me">${c.intro.map(t => `<p>${t}</p>`).join("")}
+      <div class="igrow"><a class="igbtn" href="${IG}" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a><span><b>${c.igText}</b></span></div>
+    </section>
     <div class="pick">
       <a href="#basico">${pill(c, "basic")}<b>${c.pickBasic[0]}</b><small>${c.pickBasic[1]}</small></a>
       <a href="#vip">${pill(c, "vip")}<b>${c.pickVip[0]}</b><small>${c.pickVip[1]}</small></a>
@@ -287,7 +305,7 @@ function render(){
       <h3>${b.howTitle}</h3>${feat(b.how)}
       <h3>📅 ${b.weekTitle}</h3>${feat(b.week.map(([d,t,x]) => ["▫️", d + " · " + t, x]))}
       <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
-      <h3>💰 ${c.price}</h3><p class="note" style="margin-top:0">${c.priceSoon}</p>
+      <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES_BASIC, b.priceNote)}
       ${STATE.basic === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
       <div class="hook" style="margin-top:16px"><p>${b.join}</p></div>
       ${ctaBtns(c, "basic", false)}

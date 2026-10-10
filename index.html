@@ -488,11 +488,17 @@ function renderMethod() {
     $("#refLabel").textContent = L("ID de la transacción de PayPal", "PayPal 交易編號");
     $("#refHint").textContent = L("Lo encuentras en el comprobante o en el correo de PayPal.", "可在 PayPal 的收據或通知信中找到。");
   } else {
-    const b = i.bank;
-    $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `請轉帳 <b>${esc(money(b.amount, "MXN"))}</b> 到這個帳戶：` : `Haz una transferencia por <b>${esc(money(b.amount, "MXN"))}</b> a esta cuenta:`}</p>
+    const b = i.bank, IGURL = "https://www.instagram.com/cadadiaunosminutos_ben_chino/";
+    if (/^\d{18}$/.test(String(b.clabe || "").replace(/\s/g, ""))) {
+      $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `請轉帳 <b>${esc(money(b.amount, "MXN"))}</b> 到這個帳戶：` : `Haz una transferencia por <b>${esc(money(b.amount, "MXN"))}</b> a esta cuenta:`}</p>
       <dl class="bank"><dt>${esc(L("Banco", "銀行"))}</dt><dd>${esc(b.bank)}</dd><dt>${esc(L("Titular", "戶名"))}</dt><dd>${esc(b.holder)}</dd></dl>
       <span class="hint">${esc(L("CLABE interbancaria", "CLABE 銀行帳號"))}</span>${copyRow(b.clabe)}
       ${b.note ? `<p class="hint" style="margin-top:8px">${esc(b.note)}</p>` : ""}`;
+    } else {
+      $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `轉帳金額：<b>${esc(money(b.amount, "MXN"))}</b>。為了安全，帳戶資料請私訊我取得。` : `Monto a transferir: <b>${esc(money(b.amount, "MXN"))}</b>. Por seguridad, los datos de la cuenta te los envío por mensaje directo.`}</p>
+      <a class="btn sm primary" href="${IGURL}" target="_blank" rel="noopener">${esc(L("Pedir los datos por Instagram", "用 Instagram 私訊取得帳戶資料"))}</a>
+      <p class="hint" style="margin-top:8px">${esc(L("Cuando hayas transferido, vuelve aquí y sube tu comprobante.", "轉帳後請回到這裡上傳憑證。"))}</p>`;
+    }
     $("#refLabel").textContent = L("Clave de rastreo (SPEI)", "追蹤碼（SPEI）");
     $("#refHint").textContent = L("Aparece en el comprobante de tu transferencia.", "顯示在你的轉帳憑證上。");
   }
