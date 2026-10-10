@@ -149,7 +149,9 @@ input[type=file]{position:absolute;left:-9999px}
       <p class="fe" data-for="plan"></p></div>
 
     <label><span class="lbl">Comentarios <span class="opt">(opcional)</span></span>
-      <textarea name="note" maxlength="500"></textarea></label>
+      <textarea name="note" maxlength="400"></textarea></label>
+
+    <div id="consents" class="form"></div>
 
     <div class="hp" aria-hidden="true"><label>Sitio web<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
@@ -324,7 +326,7 @@ async function post(body) {
 
 /* ---------- 狀態 ---------- */
 const CUR_NAME = () => L({ USD: "Dólar estadounidense", MXN: "Peso mexicano", TWD: "Nuevo dólar taiwanés" }, { USD: "美金", MXN: "墨西哥披索", TWD: "新台幣" });
-const S = { cur: "", groups: [], group: null, plan: "", country: "", info: null, method: "paypal", shot: null, sending: false, email: "" };
+const S = { cur: "", groups: [], group: null, plan: "", country: "", info: null, method: "paypal", shot: null, sending: false, email: "", agreeRules: false, sentVoice: false };
 const f1 = $("#f1"), f2 = $("#f2");
 
 function showStep(n) {
@@ -374,6 +376,7 @@ function onGroup() {
   const id = $("[name=group]", f1).value;
   S.group = S.groups.find(g => g.id === id) || null;
   const d = $("#groupDesc"); d.hidden = !(S.group && S.group.desc); d.textContent = S.group ? (S.group.desc || "") : "";
+  renderConsents();
   const box = $("#plans");
   if (!S.group) { box.innerHTML = `<p class="hint">${esc(L("Elige un grupo para ver los planes.", "請先選擇群組，才會顯示方案。"))}</p>`; S.plan = ""; return; }
   const keys = Object.keys(PLANS).filter(k => pricesOf(S.group, k).length);
@@ -385,6 +388,8 @@ function onGroup() {
 f1.addEventListener("change", e => {
   if (e.target.name === "group") onGroup();
   if (e.target.name === "plan") S.plan = e.target.value;
+  if (e.target.name === "agreeRules") S.agreeRules = e.target.checked;
+  if (e.target.name === "sentVoice") S.sentVoice = e.target.checked;
   if (e.target.name === "country") {
     $("#otherBox").hidden = e.target.value !== "OTHER";
     // 號碼欄還沒填（或只有上一個國碼）時，自動帶入該國國碼
@@ -406,8 +411,24 @@ const VZH = {
   "Escribe tu edad con números.": "請用數字輸入年齡。", "Escribe un correo válido.": "請輸入有效的電子郵件。",
   "Los correos no coinciden.": "兩次輸入的電子郵件不一致。",
   "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.": "請輸入含國碼的號碼，例如 +52 55 1234 5678。",
-  "Elige un grupo.": "請選擇群組。", "Elige un plan.": "請選擇方案。"
+  "Elige un grupo.": "請選擇群組。", "Elige un plan.": "請選擇方案。",
+  "Debes aceptar las reglas y la política de no reembolso.": "請勾選：你已閱讀規則並同意不退款政策。",
+  "Confirma que ya enviaste tu mensaje de voz a Ben.": "請確認你已傳送語音訊息給 Ben。"
 };
+const isVip = g => !!g && /vip/i.test(g.name || "");
+/* 報名前勾選：所有群組都要同意規則與不退款；VIP 還要確認已傳語音訊息給 Ben */
+function renderConsents() {
+  const box = $("#consents"); if (!box) return;
+  const vip = isVip(S.group);
+  const href = "groups/" + (LANG === "zh" ? "?lang=zh" : "") + (vip ? "#vip" : "#basico");
+  const link = `<a href="${href}" target="_blank" rel="noopener" style="color:var(--jade-d)">${esc(L("reglas del grupo", "群組規則"))}</a>`;
+  const rulesTxt = LANG === "zh"
+    ? `我已閱讀${link}，並同意<b>不退款政策</b>（付款後，無論任何情況均不退款）。`
+    : `Ya leí las ${link} y acepto la <b>política de NO REEMBOLSO</b> (una vez realizado el pago, no hay reembolsos bajo ninguna circunstancia).`;
+  const one = (name, checked, html) => `<div><label class="chk"><input type="checkbox" name="${name}" ${checked ? "checked" : ""}><span>${html}</span></label><p class="fe" data-for="${name}"></p></div>`;
+  box.innerHTML = one("agreeRules", S.agreeRules, rulesTxt)
+    + (vip ? one("sentVoice", S.sentVoice, esc(L("Ya envié mi mensaje de voz a Ben por Instagram.", "我已用 Instagram 傳送語音訊息給 Ben。"))) : "");
+}
 function validate1() {
   const v = n => (f1.elements[n]?.value || "").trim();
   const bad = [];
@@ -423,6 +444,8 @@ function validate1() {
   chk("whatsapp", v("whatsapp").startsWith("+") && waDigits.length >= 8 && waDigits.length <= 15, "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.");
   chk("group", !!S.group, "Elige un grupo.");
   chk("plan", !!S.plan, "Elige un plan.");
+  chk("agreeRules", !!f1.elements.agreeRules?.checked, "Debes aceptar las reglas y la política de no reembolso.");
+  chk("sentVoice", !isVip(S.group) || !!f1.elements.sentVoice?.checked, "Confirma que ya enviaste tu mensaje de voz a Ben.");
   if (bad.length) { const el = f1.elements[bad[0]] || $(".plans", f1); el.focus && el.focus(); return false; }
   return true;
 }
@@ -583,7 +606,8 @@ f2.addEventListener("submit", async e => {
     currency: S.cur,
     ref: f2.elements.ref.value.trim(),
     paidAt: f2.elements.paidAt.value,
-    note: f1.elements.note.value.trim(),
+    note: [`[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
+    acceptedRules: true, voiceSent: isVip(S.group) ? true : null, acceptedAt: new Date().toISOString(),
     screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] },
     lang: "es",          // 後端沿用西文（信件語言不變）
     uiLang: LANG         // 學生看的是哪個語言版本
@@ -604,6 +628,7 @@ function applyLang(){
   document.documentElement.lang = LANG;
   document.querySelectorAll("#langsw [data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === LANG));
   translateStatic();
+  renderConsents();
   buildCountry();
   if (S.groups.length) { buildGroup(); onGroup(); }
   if (S.info && S.group && !f2.hidden) { renderSum(); renderCurOpts(); renderMethod(); }
