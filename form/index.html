@@ -162,6 +162,11 @@ hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .req .kv{margin-bottom:10px}
 .warnTxt{color:var(--red);font-weight:700;margin-left:6px}
 .pubtag{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 10px;border-radius:6px;background:var(--jade-l);color:var(--jade-d);font-size:13px;font-weight:700}
+.pubtag.almost{background:var(--amber-l);color:#7A4E00}
+.pubtag.full{background:#FFE4D6;color:#8A3B12}
+.pubtag.closed{background:var(--gray-l);color:var(--soft)}
+.gstat{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0}
+.gstat .hint{margin-right:2px}
 .chk{display:flex;align-items:center;gap:10px}
 .chk input{width:auto;min-width:20px;height:20px}
 /* 對話框 */
@@ -336,7 +341,8 @@ const local = {
     ids = [].concat(ids);
     this.data[kind] = this.data[kind].filter(x => !ids.includes(x.id));
     this.persist();
-  }
+  },
+  async putStatus() {}   // 本機示範模式沒有介紹頁，不用同步
 };
 
 async function makeFirestore() {
@@ -389,7 +395,9 @@ async function makeFirestore() {
       const b = fs.writeBatch(db);
       [].concat(ids).forEach(id => b.delete(fs.doc(db, COLL[kind], id)));
       return b.commit();
-    }
+    },
+    /* 同步到群組介紹頁讀的 portalStatus（公開可讀、只有管理員能寫）；merge 以免蓋掉統計頁的 off 欄位 */
+    async putStatus(key, st) { return fs.setDoc(fs.doc(db, "portalStatus", key), { state: st }, { merge: true }); }
   };
   return api;
 }
@@ -434,6 +442,24 @@ const METHODS = { paypal: { label: "PayPal", ref: "PayPal 交易編號" }, mx_ba
 async function markReq(r, status, memberId) {
   const o = { ...r, status, handledAt: todayStr() }; if (memberId) o.memberId = memberId;
   await store.put("requests", o);
+}
+/* 群組報名狀態：公開／即將額滿＝報名頁看得到、可報名；額滿／不公開＝報名頁不出現。
+   同一個狀態會同步到群組介紹頁（portalStatus 的 group-vip / group-basic）。 */
+const GSTAT = {
+  open:   { label: "公開",     tag: "公開訂閱中", cls: "" },
+  almost: { label: "即將額滿", tag: "即將額滿",   cls: "almost" },
+  full:   { label: "額滿",     tag: "額滿",       cls: "full" },
+  closed: { label: "不公開",   tag: "不公開",     cls: "closed" }
+};
+const groupStatus = g => GSTAT[g.status] ? g.status : (g.public ? "open" : "closed");
+const statusIsPublic = s => s === "open" || s === "almost";
+const statusKey = g => /vip/i.test(g.name || "") ? "group-vip" : "group-basic";   // 介紹頁用名稱含 VIP 來分兩個群組
+async function setGroupStatus(gid, s) {
+  const g = groupById(gid); if (!g || !GSTAT[s] || groupStatus(g) === s) return;
+  try { await store.put("groups", { ...g, status: s, public: statusIsPublic(s) }); }
+  catch (e) { console.error(e); toast("儲存失敗"); return; }
+  try { await store.putStatus(statusKey(g), s); toast(`已設為「${GSTAT[s].label}」`); }
+  catch (e) { console.error(e); toast("已儲存，但介紹頁狀態沒同步成功（請確認 Firestore 規則允許寫入 portalStatus）"); }
 }
 const memberTotal = m => (m.payments || []).reduce((s, p) => s + (Number(p.twd) || 0), 0);
 const groupTotal = gid => membersOf(gid).reduce((s, m) => s + memberTotal(m), 0); // 含封存成員的歷史收款
@@ -595,12 +621,16 @@ function viewGroup(g) {
   }).join("");
   const sec = (s, label) => `<button class="schip ${state.groupSection === s ? "on" : ""}" data-act="gsec" data-s="${s}">${label}</button>`;
 
-  $("#main").innerHTML = `<div class="head"><div><h1>${esc(g.name)}${g.public ? `<span class="pubtag">公開訂閱中</span>` : ""}</h1>${g.note ? `<p class="note">${esc(g.note)}</p>` : ""}</div>
+  const gs = groupStatus(g);
+  const statChips = Object.entries(GSTAT).map(([k, v]) => `<button class="chip ${gs === k ? "on" : ""}" data-act="set-status" data-s="${k}" aria-pressed="${gs === k}">${v.label}</button>`).join("");
+  $("#main").innerHTML = `<div class="head"><div><h1>${esc(g.name)}<span class="pubtag ${GSTAT[gs].cls}">${GSTAT[gs].tag}</span></h1>${g.note ? `<p class="note">${esc(g.note)}</p>` : ""}</div>
       <div class="btns"><button class="btn primary" data-act="new-member">新增成員</button>
       <button class="btn" data-act="edit-group">編輯群組</button>
       <button class="btn danger" data-act="del-group">刪除群組</button></div></div>
     <div class="fees">${fees || `<span class="hint">尚未設定費用</span>`}</div>
     <p class="summary">這個群組累計收款 ${money(groupTotal(g.id), "TWD")}（含已封存成員）。</p>
+    <div class="gstat"><span class="hint">報名狀態</span>${statChips}</div>
+    <p class="hint" style="margin-top:4px">公開、即將額滿：報名頁看得到、可以報名。額滿、不公開：報名頁不會出現。介紹頁會同步顯示這個狀態。</p>
     <div class="subtabs">${sec("members", "成員")}${sec("log", "活動紀錄")}</div>
     <div id="gbody"></div>`;
   renderGroupBody(g);
@@ -810,7 +840,8 @@ function openGroupForm(id) {
         ${Object.entries(PLANS).map(([k, p]) => `<span class="pl">${p.label}</span>${CUR_ORDER.map(c => `<input name="p_${k}_${c}" type="number" inputmode="decimal" min="0" step="any" aria-label="${p.label}（${CUR[c].name}）" value="${priceOf(g, k, c) || ""}">`).join("")}`).join("")}
       </div></div>
     <p class="hint">學員付款時，可以在有填價格的幣別裡選一種。墨西哥銀行轉帳固定用披索：披索欄有填就用那個價格，沒填就用匯率換算。改費用不會影響已經記錄的付款。</p>
-    <label class="chk"><input type="checkbox" name="isPublic" ${g.public ? "checked" : ""}><span>顯示在公開訂閱頁（學員可以選這個群組）</span></label>
+    <label><span class="lbl">報名狀態（公開、即將額滿：學員可在報名頁選這個群組；額滿、不公開：報名頁不出現。介紹頁同步顯示）</span>
+      <select name="status">${Object.entries(GSTAT).map(([k, v]) => `<option value="${k}" ${groupStatus(g) === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
     <label><span class="lbl">公開頁說明（選填，學員會看到）</span><textarea name="publicDesc" rows="2">${esc(g.publicDesc)}</textarea></label>
     <label><span class="lbl">內部備註（學員看不到）</span><textarea name="note" rows="2">${esc(g.note)}</textarea></label>
     <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">儲存群組</button></div>
@@ -825,10 +856,12 @@ function openGroupForm(id) {
     });
     if (!Object.keys(table).length) { toast("至少要填一個價格"); return; }
     const want = f.elements.currency.value, currency = table[want] ? want : Object.keys(table)[0];
-    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency, prices: table[currency], priceTable: table, note: f.elements.note.value.trim(), public: f.elements.isPublic.checked, publicDesc: f.elements.publicDesc.value.trim() };
+    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency, prices: table[currency], priceTable: table, note: f.elements.note.value.trim(), status: f.elements.status.value, public: statusIsPublic(f.elements.status.value), publicDesc: f.elements.publicDesc.value.trim() };
     state.view = "group"; state.groupId = obj.id; state.q = ""; state.filter = "all";
     closeDlg();
-    try { await store.put("groups", obj); toast("已儲存群組"); } catch (err) { console.error(err); toast("儲存失敗"); }
+    try { await store.put("groups", obj); } catch (err) { console.error(err); toast("儲存失敗"); return; }
+    try { await store.putStatus(statusKey(obj), obj.status); toast("已儲存群組"); }
+    catch (err) { console.error(err); toast("群組已儲存，但介紹頁狀態沒同步成功（請確認 Firestore 規則允許寫入 portalStatus）"); }
   };
 }
 
@@ -1105,6 +1138,7 @@ const actions = {
   "new-group": () => openGroupForm(),
   "edit-group": () => openGroupForm(state.groupId),
   "del-group": delGroup,
+  "set-status": (id, el) => setGroupStatus(state.groupId, el.dataset.s),
   "gsec": (id, el) => { state.groupSection = el.dataset.s; renderGroupBody(groupById(state.groupId)); },
   "logtab": (id, el) => { state.logTab = el.dataset.t; renderLogBody(groupById(state.groupId)); },
   "new-event": () => openEventForm(state.groupId),

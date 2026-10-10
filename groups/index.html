@@ -34,6 +34,7 @@ h3{font-size:16px;margin:22px 0 8px}
 .tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--jade-l);color:var(--jade-d);margin-bottom:6px}
 .tag.soon{background:var(--amber-l);color:#7a5a00}
 .tag.wait{background:#FFE4D6;color:#8a3b12}
+.tag.almost{background:#FFE9B8;color:#7a4a00}
 .tag.closed{background:#eee;color:#555}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 18px;margin:0 0 22px;scroll-margin-top:12px}
 .card .pos{color:var(--soft);margin:0 0 4px}
@@ -93,7 +94,7 @@ const C = {
     ctaDm: "Mándame un DM en Instagram",
     ctaSignup: "Ya me confirmaste: inscribirme",
     soon: "Próximamente",
-    st: { open: "Inscripciones abiertas", waitlist: "Lista de espera", soon: "Próximamente", closed: "Inscripciones cerradas" },
+    st: { open: "Inscripciones abiertas", almost: "Últimos lugares", full: "Grupo lleno", soon: "Próximamente", closed: "Inscripciones pausadas" },
     ctaWait: "Escríbeme para entrar en la lista de espera",
     waitNote: "Por ahora el grupo está lleno. Escríbeme por DM y te anoto en la lista de espera; te aviso en cuanto se libere un lugar.",
     price: "Suscripción", priceNote: "Precio promocional actual, sujeto a aumento en cualquier momento.",
@@ -180,7 +181,7 @@ const C = {
     ctaDm: "用 Instagram 私訊我",
     ctaSignup: "我已經跟 Ben 確認過：前往報名",
     soon: "即將開放",
-    st: { open: "報名中", waitlist: "候補中", soon: "即將開放", closed: "暫停報名" },
+    st: { open: "報名中", almost: "即將額滿", full: "額滿", soon: "即將開放", closed: "暫停報名" },
     ctaWait: "私訊我加入候補名單",
     waitNote: "目前名額已滿。請私訊我加入候補名單，有空位時我會第一時間通知你。",
     price: "訂閱費用", priceNote: "現在是優惠價格喔！",
@@ -269,17 +270,22 @@ const priceHtml = (c, P = PRICES, note = c.priceNote) => {
   return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${note}</p>`;
 };
 
-/* 群組報名狀態：統計頁「卡片開關」分頁設定（portalStatus 的 group-basic / group-vip，state = open / waitlist / soon / closed）*/
+/* 群組報名狀態：在群組管理頁（form/）設定，會寫進 portalStatus 的 group-basic / group-vip。
+   state = open 報名中 / almost 即將額滿 / full 額滿 / closed 不公開（暫停報名）；soon 即將開放（群組還沒建立時的預設）。
+   舊資料的 waitlist 當作 full。*/
 let STATE = { basic: "soon", vip: "open" };
-const STATE_CLASS = { open: "", waitlist: "wait", soon: "soon", closed: "closed" };
+const STATE_CLASS = { open: "", almost: "almost", full: "wait", soon: "soon", closed: "closed" };
+const STATES = ["open", "almost", "full", "soon", "closed"];
 const FB = { apiKey: "AIzaSyCHZz8Hh7m45bJfZC9aK_f_NvUD-aUeuzU", projectId: "subscription-48d3c" };
 async function loadState(){
   try {
     const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FB.projectId}/databases/(default)/documents/portalStatus?pageSize=100&key=${FB.apiKey}`);
     const j = await r.json();
     (j.documents || []).forEach(d => {
-      const id = d.name.split("/").pop(), st = d.fields && d.fields.state && d.fields.state.stringValue;
-      if (st && ["open", "waitlist", "soon", "closed"].includes(st)) { if (id === "group-basic") STATE.basic = st; if (id === "group-vip") STATE.vip = st; }
+      const id = d.name.split("/").pop();
+      let st = d.fields && d.fields.state && d.fields.state.stringValue;
+      if (st === "waitlist") st = "full";
+      if (st && STATES.includes(st)) { if (id === "group-basic") STATE.basic = st; if (id === "group-vip") STATE.vip = st; }
     });
     render();
   } catch (e) { /* 讀不到就用預設狀態 */ }
@@ -288,8 +294,8 @@ const pill = (c, k) => `<span class="tag ${STATE_CLASS[STATE[k]]}">${c.st[STATE[
 const ctaBtns = (c, k, withSignup) => {
   const st = STATE[k];
   if (st === "closed") return "";
-  const dm = `<a class="btn" href="${IG}" target="_blank" rel="noopener">${st === "waitlist" ? c.ctaWait : c.ctaDm}</a>`;
-  const su = withSignup && (st === "open" || st === "waitlist") ? `<a class="btn ghost" href="${SIGNUP}${LANG === "zh" ? "?lang=zh" : ""}">${c.ctaSignup}</a>` : "";
+  const dm = `<a class="btn" href="${IG}" target="_blank" rel="noopener">${st === "full" ? c.ctaWait : c.ctaDm}</a>`;
+  const su = withSignup && (st === "open" || st === "almost") ?`<a class="btn ghost" href="${SIGNUP}${LANG === "zh" ? "?lang=zh" : ""}">${c.ctaSignup}</a>` : "";
   return `<div class="cta">${dm}${su}</div>`;
 };
 let LANG = (new URLSearchParams(location.search).get("lang") || (() => { try { return localStorage.getItem("subLang"); } catch (e) { return null; } })() || "es") === "zh" ? "zh" : "es";
@@ -319,9 +325,9 @@ function render(){
       <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
       <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES_BASIC, b.priceNote)}
       <p class="note">${b.screen}</p>
-      ${STATE.basic === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
-      <div class="hook" style="margin-top:16px"><p>${b.join}</p></div>
-      ${ctaBtns(c, "basic", false)}
+      ${STATE.basic === "full" ? `<p class="note">${c.waitNote}</p>` : ""}
+      ${STATE.basic === "closed" ? "" : `<div class="hook" style="margin-top:16px"><p>${b.join}</p></div>`}
+      ${ctaBtns(c, "basic", true)}
     </section>
 
     <section class="card" id="vip">
@@ -333,8 +339,8 @@ function render(){
       <h3>${v.rulesTitle}</h3><ol class="rules">${v.rules.map(r => `<li>${r}</li>`).join("")}</ol>
       <h3>💰 ${c.price}</h3>${priceHtml(c)}
       <p class="note">${v.screen}</p>
-      ${STATE.vip === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
-      <div class="hook" style="margin-top:16px"><p>${v.closing}</p><p>${v.how}</p></div>
+      ${STATE.vip === "full" ? `<p class="note">${c.waitNote}</p>` : ""}
+      ${STATE.vip === "closed" ? "" : `<div class="hook" style="margin-top:16px"><p>${v.closing}</p><p>${v.how}</p></div>`}
       ${ctaBtns(c, "vip", true)}
     </section>
 
