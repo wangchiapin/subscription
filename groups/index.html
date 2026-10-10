@@ -26,7 +26,7 @@ h2{font-size:20px;margin:0 0 6px}
 h3{font-size:16px;margin:22px 0 8px}
 .lead{margin:0 0 18px;color:var(--soft)}
 .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 24px}
-@media(max-width:460px){.pick{grid-template-columns:1fr}}
+@media(max-width:460px){.pick a{padding:12px}.pick b{font-size:15px}.pick small{font-size:12px}}
 .pick a{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
 .pick a:hover{border-color:var(--jade)}
 .pick b{display:block;font-size:17px}
@@ -44,7 +44,7 @@ ul.feat{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 ul.feat li{display:grid;grid-template-columns:28px 1fr;gap:6px}
 ul.feat b{display:block}
 ol.rules{margin:0;padding-left:20px;display:grid;gap:10px}
-.norefund{background:var(--amber-l);border:1px solid var(--amber);border-radius:10px;padding:10px 12px}
+.norefund{display:block;background:var(--amber-l);border:1px solid var(--amber);border-radius:10px;padding:10px 12px}
 .price{display:grid;gap:6px;margin:6px 0}
 .price div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:6px 0}
 .price b{white-space:nowrap}
@@ -62,6 +62,10 @@ ol.rules{margin:0;padding-left:20px;display:grid;gap:10px}
 .igbtn{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--jade);color:#fff}
 .igbtn:hover{background:var(--jade-d)}
 .igbtn svg{width:26px;height:26px}
+.fab{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+.fab a{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border-radius:12px;text-decoration:none;font-weight:700;font-size:15px;border:1px solid var(--jade);color:var(--jade-d);background:#fff;padding:0 14px;flex:1;max-width:200px}
+.fab a.ig{flex:none;width:48px;max-width:none;padding:0;background:var(--jade);color:#fff}
+.fab a.ig svg{width:24px;height:24px}
 .foot{margin-top:24px;color:var(--soft);font-size:13px;text-align:center}
 </style>
 </head>
@@ -84,6 +88,7 @@ const C = {
     pickBasic: ["Grupo Básico", "Desde cero · mucho acompañamiento"],
     pickVip: ["Grupo VIP", "Nivel intermedio · alto acompañamiento"],
     intro: ["Soy Benjamín, profesor de chino de Taiwán.", "Tengo casi cinco años de experiencia enseñando chino en línea y más de 2,600 clases impartidas. Todos mis alumnos son hispanohablantes, así que conozco muy bien dónde suelen atascarse.", "Este grupo es mi método de siempre, convertido en pequeñas tareas para practicar cada día."],
+    fabBasic: "Básico", fabVip: "VIP",
     igText: "¿No sabes quién soy? ¡Ven a conocerme!",
     ctaDm: "Mándame un DM en Instagram",
     ctaSignup: "Ya me confirmaste: inscribirme",
@@ -120,6 +125,7 @@ const C = {
         "<b>Nivel:</b> no necesitas saber nada de chino; empezamos desde cero. Solo tienes que poder dedicar de 5 a 10 minutos al día.",
         "<span class=\"norefund\">🚫 <b>Política de NO REEMBOLSO:</b> una vez realizado el pago, no hay reembolsos bajo ninguna circunstancia. Asegúrate de estar 100% listo antes de inscribirte.</span>"
       ],
+      screen: "Si al leer esto estás pensando: “¿Ah? ¿Tengo que pagar? ¿Qué caro? ¿De verdad funciona?”… ¡entonces pasa de largo! 👋",
       priceNote: "Mensual: unos 5 MXN al día (≈ US$0.30), menos que un café. Precio promocional, puede subir en cualquier momento.",
       join: "👉 Mándame un DM en Instagram para confirmar tu lugar. Cupos limitados para asegurar la calidad del acompañamiento y las correcciones."
     },
@@ -156,6 +162,8 @@ const C = {
     faq: [
       ["¿Cómo me inscribo?", "Primero escríbeme por DM de Instagram (en el VIP, con un mensaje de voz en chino). Cuando confirmemos que el grupo es para ti, te envío el enlace de inscripción para elegir el plan y subir tu comprobante de pago."],
       ["¿Qué métodos de pago hay?", "PayPal (USD). Para personas en México también hay transferencia bancaria (SPEI); los datos de la cuenta te los envío por DM."],
+      ["¿Cómo renuevo?", "Igual que la primera vez: haces una nueva transferencia o pago y subes tu comprobante en la página de inscripción."],
+      ["¿Qué pasa si no renuevo?", "Si no renuevas, te saco del grupo. Si quieres volver, haces un nuevo pago y subes tu comprobante otra vez."],
       ["¿Hay reembolsos?", "No. Una vez realizado el pago no hay reembolsos, ni siquiera si sales del grupo por inactividad."],
       ["¿Cuándo me agregan al grupo?", "Reviso tu comprobante y te agrego al grupo de WhatsApp con el número que pusiste en la inscripción. Ten en cuenta que los demás miembros podrán ver ese número."]
     ],
@@ -167,6 +175,7 @@ const C = {
     pickBasic: ["零基礎群組", "從零開始・高輔導"],
     pickVip: ["VIP 高階群組", "中級・高輔導、高產出"],
     intro: ["我是 Benjamín，來自台灣的華語老師。", "我有近五年的線上華語教學經驗，累計超過 2,600 節課。我的學生都是以西班牙語為母語的中文學習者，所以我很清楚你們學中文時最容易卡在哪裡。", "這個群組，就是把我平常帶學生的方法，變成每天都能練習的小任務。"],
+    fabBasic: "零基礎", fabVip: "VIP",
     igText: "不知道我是誰嗎？來看看我吧！",
     ctaDm: "用 Instagram 私訊我",
     ctaSignup: "我已經跟 Ben 確認過：前往報名",
@@ -183,7 +192,7 @@ const C = {
       howTitle: "在群組，我們要做什麼?",
       how: [
         ["🗓️", "主題練習", "每週一個實用主題（例如：買東西、點餐）、語法點或核心句型，從 0 一步步建立你的中文。絕對不會隨便給你一個單字或句子就放你不管。"],
-        ["🎙️", "語音微任務", "每週至少一5個簡短的微型語音任務。每天只需 5 到 10 分鐘，隨時可以完成你的練習。"],
+        ["🎙️", "語音微任務", "每週 5 個簡短的微型語音任務。每天只需 5 到 10 分鐘，隨時可以完成你的練習。"],
         ["🔤", "拼音與發音", "所有內容都附拼音，不定時加入發音講解，幫你把音念得越來越準。"],
         ["💬", "週間小練習", "週間不定時發布小練習或教學，讓你隨時沉浸在中文的環境裡。"]
       ],
@@ -203,6 +212,7 @@ const C = {
         "<b>程度：</b>不需要任何中文基礎，我們從零開始。你只需要準備好每天花 5 到 10 分鐘。",
         "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況均不退款。報名前請確認自己已經準備好。</span>"
       ],
+      screen: "如果你讀到這裡心裡想：「啊？還要付錢？好貴？真的有用嗎？」……那請直接滑過去吧！👋",
       priceNote: "月訂約每天 5 MXN（約 US$0.30），比一杯咖啡還少。現在是優惠價格，隨時可能調漲。",
       join: "👉 請用 Instagram 私訊我，確認你的名額。名額有限，以確保陪伴與修正的品質。"
     },
@@ -226,7 +236,7 @@ const C = {
       rulesTitle: "⚖️ 群組規則（報名前請務必閱讀）",
       rules: [
         "<b>自律是唯一的條件。</b>不想浪費訂閱費，就要練習。付費讓你取得我的指導和資源，但「不是買到當被動學生的權利」。想當幽靈的話，不如把錢丟進水裡。",
-        "<b>不說西班牙文。</b>除了中文，不可以使用其他語言。群組內以簡體中文為主。只有我會用西班牙文來解釋和修正。群組內以簡體中文為主。",
+        "<b>不說西班牙文。</b>除了中文，不可以使用其他語言。群組內以簡體中文為主。只有我會用西班牙文來解釋和修正。",
         "<b>不要洗版。</b>群組裡不要為了打招呼而打招呼，不發沒有意義的訊息，也不容許不當言論，屢勸不聽的會強制退群（不會退款）。",
         "<b>程度要求：</b>這個群組不是給完全的初學者，也不是給高手。是為了幫助卡關的「中級」學生。",
         "<span class=\"norefund\">🚫 <b>不退款政策：</b>付款後，無論任何情況都不退款（包括因為不活躍被移出群組）。報名前請確認自己已經 100% 準備好接受挑戰。</span>"
@@ -239,6 +249,8 @@ const C = {
     faq: [
       ["怎麼報名？", "請先用 Instagram 私訊我（VIP 群組請傳一則中文語音訊息）。確認這個群組適合你之後，我會把報名連結給你，讓你選方案並上傳付款憑證。"],
       ["有哪些付款方式？", "PayPal（美金）。墨西哥的朋友也可以用銀行轉帳（SPEI），帳號資料我會用私訊給你。"],
+      ["怎麼續訂？", "和第一次報名一樣：重新付款，並在報名頁上傳付款證明。"],
+      ["沒有續訂會怎麼樣？", "沒有續訂的話，我會直接把你移出群組。想再加入時，重新付款並上傳付款證明即可。"],
       ["可以退款嗎？", "不可以。付款後一律不退款，即使因為不活躍而離開群組也一樣。"],
       ["什麼時候會被加進群組？", "我核對你的付款憑證後，會用你報名時填的號碼把你加進 WhatsApp 群組。請注意，其他成員看得到這個號碼。"]
     ],
@@ -306,6 +318,7 @@ function render(){
       <h3>📅 ${b.weekTitle}</h3>${feat(b.week.map(([d,t,x]) => ["▫️", d + " · " + t, x]))}
       <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
       <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES_BASIC, b.priceNote)}
+      <p class="note">${b.screen}</p>
       ${STATE.basic === "waitlist" ? `<p class="note">${c.waitNote}</p>` : ""}
       <div class="hook" style="margin-top:16px"><p>${b.join}</p></div>
       ${ctaBtns(c, "basic", false)}
@@ -326,7 +339,9 @@ function render(){
     </section>
 
     <section class="card faq"><h2>${c.faqTitle}</h2>${c.faq.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join("")}</section>
-    <p class="foot">${c.foot}</p>`;
+    <p class="foot">${c.foot}</p>
+    <nav class="fab" aria-label="Menu"><a class="ig" href="${IG}" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a><a href="#basico">${c.fabBasic}</a><a href="#vip">${c.fabVip}</a></nav>
+  `;
 }
 document.getElementById("langsw").addEventListener("click", e => {
   const b = e.target.closest("[data-lang]"); if (!b || b.dataset.lang === LANG) return;
