@@ -140,11 +140,6 @@ input[type=file]{position:absolute;left:-9999px}
       <p class="hint">Con código de país. Te agregaremos al grupo de WhatsApp con este número; al entrar, los demás miembros podrán verlo.</p>
       <p class="fe" data-for="whatsapp"></p></label>
 
-    <label><span class="lbl">Tu usuario de Instagram</span>
-      <input type="text" name="ig" maxlength="60" autocomplete="off" autocapitalize="none" placeholder="@usuario">
-      <p class="hint">El usuario con el que me escribiste por mensaje directo.</p>
-      <p class="fe" data-for="ig"></p></label>
-
     <label id="groupBox"><span class="lbl">Grupo</span>
       <select name="group"></select>
       <p class="fe" data-for="group"></p></label>
@@ -279,8 +274,6 @@ const ZH = {
   "Tus datos y tu comprobante solo se usan para gestionar tu suscripción.": "你的資料和付款憑證只用於管理你的訂閱。",
   "Ver la presentación de los grupos": "先看看群組介紹",
   "Vista previa de tu captura": "截圖預覽",
-  "Tu usuario de Instagram": "你的 Instagram 帳號",
-  "El usuario con el que me escribiste por mensaje directo.": "請填你私訊我時用的帳號。",
   "Revisaremos tu nivel; si el grupo no corresponde, te contactaremos para ajustarlo.": "我們會確認你的程度；若群組不符，會再聯繫你調整。"
 };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -412,7 +405,7 @@ const DRAFT_KEY = "subDraft";
 function saveDraft() {
   try {
     const d = { plan: S.plan };
-    ["name", "country", "countryOther", "age", "email", "email2", "whatsapp", "ig", "group", "note"].forEach(n => d[n] = f1.elements[n].value);
+    ["name", "country", "countryOther", "age", "email", "email2", "whatsapp", "group", "note"].forEach(n => d[n] = f1.elements[n].value);
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
   } catch (e) {}
 }
@@ -420,7 +413,7 @@ function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
 function restoreDraft() {
   let d = null; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) {}
   if (!d) return;
-  ["name", "countryOther", "age", "email", "email2", "whatsapp", "ig", "note"].forEach(n => { if (d[n]) f1.elements[n].value = d[n]; });
+  ["name", "countryOther", "age", "email", "email2", "whatsapp", "note"].forEach(n => { if (d[n]) f1.elements[n].value = d[n]; });
   if (d.country) { f1.elements.country.value = d.country; S.country = f1.elements.country.value; $("#otherBox").hidden = S.country !== "OTHER"; }
   if (d.group && S.groups.some(g => g.id === d.group)) { f1.elements.group.value = d.group; onGroup(); }
   if (d.plan) { const r = f1.querySelector(`input[name=plan][value="${d.plan}"]`); if (r) { r.checked = true; S.plan = d.plan; } }
@@ -441,16 +434,8 @@ const VZH = {
   "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.": "請輸入含國碼的號碼，例如 +52 55 1234 5678。",
   "Elige un grupo.": "請選擇群組。", "Elige un plan.": "請選擇方案。",
   "Debes aceptar las reglas y la política de no reembolso.": "請勾選：你已閱讀規則並同意不退款政策。",
-  "Confirma que ya enviaste tu mensaje de voz a Ben.": "請確認你已傳送語音訊息給 Ben。",
-  "Escribe tu usuario de Instagram (por ejemplo @usuario).": "請輸入你的 Instagram 帳號，例如 @usuario。"
+  "Confirma que ya enviaste tu mensaje de voz a Ben.": "請確認你已傳送語音訊息給 Ben。"
 };
-/* 接受 @user、user 或整段 instagram.com 網址，回傳乾淨的帳號（不合法就回空字串） */
-function igHandle(v) {
-  let h = String(v || "").trim();
-  const m = h.match(/instagram\.com\/([^/?#\s]+)/i); if (m) h = m[1];
-  h = h.replace(/^@+/, "").replace(/\/+$/, "");
-  return /^[A-Za-z0-9._]{1,30}$/.test(h) ? h : "";
-}
 const isVip = g => !!g && /vip/i.test(g.name || "");
 /* 報名前勾選：所有群組都要同意規則與不退款；VIP 還要確認已傳語音訊息給 Ben */
 function renderConsents() {
@@ -478,7 +463,6 @@ function validate1() {
   chk("email2", v("email").toLowerCase() === v("email2").toLowerCase(), "Los correos no coinciden.");
   const waDigits = v("whatsapp").replace(/\D/g, "");
   chk("whatsapp", v("whatsapp").startsWith("+") && waDigits.length >= 8 && waDigits.length <= 15, "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.");
-  chk("ig", !!igHandle(v("ig")), "Escribe tu usuario de Instagram (por ejemplo @usuario).");
   chk("group", !!S.group, "Elige un grupo.");
   chk("plan", !!S.plan, "Elige un plan.");
   chk("agreeRules", !!f1.elements.agreeRules?.checked, "Debes aceptar las reglas y la política de no reembolso.");
@@ -637,7 +621,7 @@ f2.addEventListener("submit", async e => {
     currency: S.cur,
     ref: f2.elements.ref.value.trim(),
     paidAt: f2.elements.paidAt.value,
-    note: [`[IG @${igHandle(f1.elements.ig.value)}]`, `[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
+    note: [`[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
     acceptedRules: true, voiceSent: isVip(S.group) ? true : null, acceptedAt: new Date().toISOString(),
     screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] },
     lang: "es",          // 後端沿用西文（信件語言不變）
