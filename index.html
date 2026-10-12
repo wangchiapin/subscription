@@ -89,6 +89,7 @@ input[type=file]{position:absolute;left:-9999px}
 .langsw{display:flex;justify-content:flex-end;gap:6px;margin:0 0 8px}
 .langsw button{font:inherit;font-size:14px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .langsw button.on{background:var(--jade);border-color:var(--jade);color:#fff;font-weight:700}
+.acts2{margin:6px 0 10px}
 .foot{margin-top:20px;color:var(--soft);font-size:13px;text-align:center}
 </style>
 </head>
@@ -139,6 +140,11 @@ input[type=file]{position:absolute;left:-9999px}
       <p class="hint">Con código de país. Te agregaremos al grupo de WhatsApp con este número; al entrar, los demás miembros podrán verlo.</p>
       <p class="fe" data-for="whatsapp"></p></label>
 
+    <label><span class="lbl">Tu usuario de Instagram</span>
+      <input type="text" name="ig" maxlength="60" autocomplete="off" autocapitalize="none" placeholder="@usuario">
+      <p class="hint">El usuario con el que me escribiste por mensaje directo.</p>
+      <p class="fe" data-for="ig"></p></label>
+
     <label id="groupBox"><span class="lbl">Grupo</span>
       <select name="group"></select>
       <p class="fe" data-for="group"></p></label>
@@ -149,7 +155,7 @@ input[type=file]{position:absolute;left:-9999px}
       <p class="fe" data-for="plan"></p></div>
 
     <label><span class="lbl">Comentarios <span class="opt">(opcional)</span></span>
-      <textarea name="note" maxlength="400"></textarea></label>
+      <textarea name="note" maxlength="350"></textarea></label>
 
     <div id="consents" class="form"></div>
 
@@ -167,14 +173,6 @@ input[type=file]{position:absolute;left:-9999px}
     </div>
 
     <div class="card form">
-      <div id="methodsBox" hidden>
-        <span class="lbl">Método de pago</span>
-        <div class="methods">
-          <label class="plan"><input type="radio" name="method" value="paypal" checked><span><b>PayPal</b></span></label>
-          <label class="plan"><input type="radio" name="method" value="mx_bank"><span><b>Transferencia bancaria (México)</b><br><span class="hint">Disponible para planes bimestral y trimestral.</span></span></label>
-        </div>
-      </div>
-
       <div id="curBox" hidden>
         <span class="lbl">Moneda de pago</span>
         <div class="methods" id="curOpts"></div>
@@ -201,6 +199,7 @@ input[type=file]{position:absolute;left:-9999px}
         <p class="fe" id="shotErr"></p>
       </div>
 
+      <p class="hint">Revisaremos tu nivel; si el grupo no corresponde, te contactaremos para ajustarlo.</p>
       <label class="chk"><input type="checkbox" id="ok"><span>Confirmo que ya realicé el pago y que mis datos son correctos.</span></label>
 
       <p class="hint" id="hint2">Completa todos los campos para poder confirmar.</p>
@@ -217,6 +216,7 @@ input[type=file]{position:absolute;left:-9999px}
     <div class="ok" aria-hidden="true">✓</div>
     <h2>¡Solicitud enviada!</h2>
     <p>Revisaremos tu pago y te agregaremos al grupo. Te contactaremos al correo <b id="doneMail"></b>.</p>
+    <p class="hint">Revisaremos tu nivel; si el grupo no corresponde, te contactaremos para ajustarlo.</p>
     <p class="hint">Tu referencia: <b id="doneRef"></b></p>
   </section>
 
@@ -230,6 +230,9 @@ input[type=file]{position:absolute;left:-9999px}
    ===================================================================== */
 const API_URL = "https://script.google.com/macros/s/AKfycbxmg84I5we5h72F2tBjOVfmBVL7jZIQuXEggk1SNxctbxLdA4pmYE9hgSMMyBXlhLXHVQ/exec";
 const DEMO = API_URL.startsWith("YOUR_");
+const PAYPAL_ME = "https://paypal.me/ben790831";
+const CONTACT_EMAIL = "a2224907@gmail.com";
+const IGURL = "https://www.instagram.com/cadadiaunosminutos_ben_chino/";
 
 const COUNTRIES = [
   ["MX", "México", "墨西哥", "52"], ["ES", "España", "西班牙", "34"], ["CO", "Colombia", "哥倫比亞", "57"], ["AR", "Argentina", "阿根廷", "54"],
@@ -275,7 +278,10 @@ const ZH = {
   ".": "。", "Tu referencia:": "你的申請編號：",
   "Tus datos y tu comprobante solo se usan para gestionar tu suscripción.": "你的資料和付款憑證只用於管理你的訂閱。",
   "Ver la presentación de los grupos": "先看看群組介紹",
-  "Vista previa de tu captura": "截圖預覽"
+  "Vista previa de tu captura": "截圖預覽",
+  "Tu usuario de Instagram": "你的 Instagram 帳號",
+  "El usuario con el que me escribiste por mensaje directo.": "請填你私訊我時用的帳號。",
+  "Revisaremos tu nivel; si el grupo no corresponde, te contactaremos para ajustarlo.": "我們會確認你的程度；若群組不符，會再聯繫你調整。"
 };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsPut = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -354,6 +360,7 @@ async function init() {
   buildGroup();
   if (S.groups.length === 1) $("[name=group]", f1).value = S.groups[0].id;
   onGroup();
+  restoreDraft();
   f1.hidden = false;
 }
 
@@ -400,6 +407,27 @@ f1.addEventListener("change", e => {
   }
 });
 
+/* ---------- 第 1 步資料暫存在自己的瀏覽器（聯繫 Ben 後回來不用重填；送出後清掉，不存截圖與勾選）---------- */
+const DRAFT_KEY = "subDraft";
+function saveDraft() {
+  try {
+    const d = { plan: S.plan };
+    ["name", "country", "countryOther", "age", "email", "email2", "whatsapp", "ig", "group", "note"].forEach(n => d[n] = f1.elements[n].value);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch (e) {}
+}
+function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+function restoreDraft() {
+  let d = null; try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) {}
+  if (!d) return;
+  ["name", "countryOther", "age", "email", "email2", "whatsapp", "ig", "note"].forEach(n => { if (d[n]) f1.elements[n].value = d[n]; });
+  if (d.country) { f1.elements.country.value = d.country; S.country = f1.elements.country.value; $("#otherBox").hidden = S.country !== "OTHER"; }
+  if (d.group && S.groups.some(g => g.id === d.group)) { f1.elements.group.value = d.group; onGroup(); }
+  if (d.plan) { const r = f1.querySelector(`input[name=plan][value="${d.plan}"]`); if (r) { r.checked = true; S.plan = d.plan; } }
+}
+f1.addEventListener("input", saveDraft);
+f1.addEventListener("change", saveDraft);
+
 /* ---------- 第 1 步：驗證 ---------- */
 function fieldErr(name, msg) {
   const p = $(`.fe[data-for="${name}"]`, f1); if (p) { p.dataset.k = msg || ""; p.textContent = msg ? L(msg, VZH[msg] || msg) : ""; }
@@ -413,8 +441,16 @@ const VZH = {
   "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.": "請輸入含國碼的號碼，例如 +52 55 1234 5678。",
   "Elige un grupo.": "請選擇群組。", "Elige un plan.": "請選擇方案。",
   "Debes aceptar las reglas y la política de no reembolso.": "請勾選：你已閱讀規則並同意不退款政策。",
-  "Confirma que ya enviaste tu mensaje de voz a Ben.": "請確認你已傳送語音訊息給 Ben。"
+  "Confirma que ya enviaste tu mensaje de voz a Ben.": "請確認你已傳送語音訊息給 Ben。",
+  "Escribe tu usuario de Instagram (por ejemplo @usuario).": "請輸入你的 Instagram 帳號，例如 @usuario。"
 };
+/* 接受 @user、user 或整段 instagram.com 網址，回傳乾淨的帳號（不合法就回空字串） */
+function igHandle(v) {
+  let h = String(v || "").trim();
+  const m = h.match(/instagram\.com\/([^/?#\s]+)/i); if (m) h = m[1];
+  h = h.replace(/^@+/, "").replace(/\/+$/, "");
+  return /^[A-Za-z0-9._]{1,30}$/.test(h) ? h : "";
+}
 const isVip = g => !!g && /vip/i.test(g.name || "");
 /* 報名前勾選：所有群組都要同意規則與不退款；VIP 還要確認已傳語音訊息給 Ben */
 function renderConsents() {
@@ -442,6 +478,7 @@ function validate1() {
   chk("email2", v("email").toLowerCase() === v("email2").toLowerCase(), "Los correos no coinciden.");
   const waDigits = v("whatsapp").replace(/\D/g, "");
   chk("whatsapp", v("whatsapp").startsWith("+") && waDigits.length >= 8 && waDigits.length <= 15, "Escribe tu número con código de país, por ejemplo +52 55 1234 5678.");
+  chk("ig", !!igHandle(v("ig")), "Escribe tu usuario de Instagram (por ejemplo @usuario).");
   chk("group", !!S.group, "Elige un grupo.");
   chk("plan", !!S.plan, "Elige un plan.");
   chk("agreeRules", !!f1.elements.agreeRules?.checked, "Debes aceptar las reglas y la política de no reembolso.");
@@ -462,7 +499,7 @@ f1.addEventListener("submit", async e => {
   try {
     const info = await api("payinfo", { groupId: S.group.id, plan: S.plan, country: S.country });
     if (!info.ok) throw new Error(info.error || "api");
-    S.info = info; S.method = "paypal"; S.shot = null;
+    S.info = info; S.shot = null;
     fillStep2();
     showStep(2);
   } catch (err) {
@@ -485,8 +522,6 @@ function renderCurOpts(){
 function fillStep2() {
   const i = S.info;
   renderSum();
-  $("#methodsBox").hidden = !i.bank;
-  f2.elements.method.value = "paypal";
   // 幣別：墨西哥人預設披索（有定價的話），其他人用主要幣別
   S.cur = (S.country === "MX" && i.options.some(o => o.currency === "MXN")) ? "MXN" : i.options[0].currency;
   renderCurOpts();
@@ -495,41 +530,37 @@ function fillStep2() {
   renderMethod();
 }
 
+/* 付款方式由幣別決定：MXN＝先聯繫 Ben 取得帳號再轉帳；其他幣別＝PayPal（paypal.me 連結，帶金額）。
+   送給後端的 method 一律是 "paypal"（後端只認這個），管理頁再依幣別判斷實際付款方式。 */
+const isMxn = () => S.cur === "MXN";
 function renderMethod() {
-  const i = S.info, bank = S.method === "mx_bank" && i.bank;
+  const i = S.info, mxn = isMxn();
   const opt = i.options.find(o => o.currency === S.cur) || i.options[0];
-  $("#curBox").hidden = !!bank || i.options.length < 2;
-  $("#total").textContent = bank ? money(i.bank.amount, "MXN") : money(opt.amount, opt.currency);
-  $("#paypalBox").hidden = !!bank; $("#bankBox").hidden = !bank;
-  if (!bank) $("#bankBox").innerHTML = "";
-  if (!bank) {
-    const p = i.paypal || {};
-    $("#paypalBox").innerHTML = `<p>${LANG === "zh" ? `請將 <b>${esc(money(opt.amount, opt.currency))}</b> 付款到這個 PayPal 帳號：` : `Envía <b>${esc(money(opt.amount, opt.currency))}</b> a esta cuenta de PayPal:`}</p>${copyRow(p.email || "")}
-      ${opt.link ? `<a class="btn sm primary" href="${esc(opt.link)}" target="_blank" rel="noopener">${esc(L("Abrir PayPal", "開啟 PayPal"))}</a>` : ""}
-      ${p.note ? `<p class="hint" style="margin-top:8px">${esc(p.note)}</p>` : ""}
+  $("#curBox").hidden = i.options.length < 2;
+  $("#total").textContent = money(opt.amount, opt.currency);
+  $("#paypalBox").hidden = mxn; $("#bankBox").hidden = !mxn;
+  if (!mxn) {
+    $("#bankBox").innerHTML = "";
+    const url = `${PAYPAL_ME}/${Number(opt.amount)}${opt.currency}`;
+    $("#paypalBox").innerHTML = `<p>${LANG === "zh" ? `請付款 <b>${esc(money(opt.amount, opt.currency))}</b>：` : `Paga <b>${esc(money(opt.amount, opt.currency))}</b>:`}</p>
+      <a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${esc(L("Pagar con PayPal", "前往 PayPal 付款"))}</a>
       <p class="hint" style="margin-top:8px">${esc(L("Después de pagar, guarda la captura de pantalla y el ID de la transacción.", "付款後，請保存付款截圖和交易編號。"))}</p>`;
     $("#refLabel").textContent = L("ID de la transacción de PayPal", "PayPal 交易編號");
     $("#refHint").textContent = L("Lo encuentras en el comprobante o en el correo de PayPal.", "可在 PayPal 的收據或通知信中找到。");
   } else {
-    const b = i.bank, IGURL = "https://www.instagram.com/cadadiaunosminutos_ben_chino/";
-    if (/^\d{18}$/.test(String(b.clabe || "").replace(/\s/g, ""))) {
-      $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `請轉帳 <b>${esc(money(b.amount, "MXN"))}</b> 到這個帳戶：` : `Haz una transferencia por <b>${esc(money(b.amount, "MXN"))}</b> a esta cuenta:`}</p>
-      <dl class="bank"><dt>${esc(L("Banco", "銀行"))}</dt><dd>${esc(b.bank)}</dd><dt>${esc(L("Titular", "戶名"))}</dt><dd>${esc(b.holder)}</dd></dl>
-      <span class="hint">${esc(L("CLABE interbancaria", "CLABE 銀行帳號"))}</span>${copyRow(b.clabe)}
-      ${b.note ? `<p class="hint" style="margin-top:8px">${esc(b.note)}</p>` : ""}`;
-    } else {
-      $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `轉帳金額：<b>${esc(money(b.amount, "MXN"))}</b>。為了安全，帳戶資料請私訊我取得。` : `Monto a transferir: <b>${esc(money(b.amount, "MXN"))}</b>. Por seguridad, los datos de la cuenta te los envío por mensaje directo.`}</p>
-      <a class="btn sm primary" href="${IGURL}" target="_blank" rel="noopener">${esc(L("Pedir los datos por Instagram", "用 Instagram 私訊取得帳戶資料"))}</a>
-      <p class="hint" style="margin-top:8px">${esc(L("Cuando hayas transferido, vuelve aquí y sube tu comprobante.", "轉帳後請回到這裡上傳憑證。"))}</p>`;
-    }
-    $("#refLabel").textContent = L("Clave de rastreo (SPEI)", "追蹤碼（SPEI）");
+    $("#paypalBox").innerHTML = "";
+    $("#bankBox").innerHTML = `<p>${LANG === "zh" ? `轉帳金額：<b>${esc(money(opt.amount, "MXN"))}</b>。` : `Monto a transferir: <b>${esc(money(opt.amount, "MXN"))}</b>.`}</p>
+      <p><b>${esc(L("Antes de transferir", "匯款前"))}</b>${LANG === "zh" ? "，請先用 Instagram 私訊或 email 聯繫我，取得匯款帳號資料。匯款後再回到這一頁，填寫下面的資料。" : ", escríbeme por Instagram o por correo para pedirte los datos de la cuenta. Cuando hayas transferido, vuelve a esta página y completa los datos de abajo."}</p>
+      <div class="acts2"><a class="btn sm primary" href="${IGURL}" target="_blank" rel="noopener">${esc(L("Escribirme por Instagram", "用 Instagram 私訊我"))}</a></div>
+      <span class="hint">${esc(L("O por correo:", "或寄 email："))}</span>${copyRow(CONTACT_EMAIL)}
+      <a class="btn sm" href="mailto:${CONTACT_EMAIL}">${esc(L("Escribirme por correo", "寄 email 給我"))}</a>`;
+    $("#refLabel").textContent = L("Clave de rastreo o número de referencia", "轉帳追蹤碼或參考編號");
     $("#refHint").textContent = L("Aparece en el comprobante de tu transferencia.", "顯示在你的轉帳憑證上。");
   }
   check2();
 }
 
 f2.addEventListener("change", e => {
-  if (e.target.name === "method") { S.method = e.target.value; renderMethod(); }
   if (e.target.name === "cur") { S.cur = e.target.value; renderMethod(); }
 });
 f2.addEventListener("input", check2);
@@ -602,11 +633,11 @@ f2.addEventListener("submit", async e => {
     email: S.email,
     whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
     groupId: S.group.id, plan: S.plan,
-    method: S.info.bank && S.method === "mx_bank" ? "mx_bank" : "paypal",
+    method: "paypal",
     currency: S.cur,
     ref: f2.elements.ref.value.trim(),
     paidAt: f2.elements.paidAt.value,
-    note: [`[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
+    note: [`[IG @${igHandle(f1.elements.ig.value)}]`, `[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
     acceptedRules: true, voiceSent: isVip(S.group) ? true : null, acceptedAt: new Date().toISOString(),
     screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] },
     lang: "es",          // 後端沿用西文（信件語言不變）
@@ -616,6 +647,7 @@ f2.addEventListener("submit", async e => {
     const r = await post(body);
     if (!r.ok) { showErr("#err2", ERRORS()[r.error] || L(`No pudimos enviar tu solicitud. Revisa tus datos e inténtalo de nuevo. (código: ${r.error || "desconocido"})`, `無法送出申請，請檢查資料後再試一次。（代碼：${r.error || "未知"}）`)); return; }
     $("#doneMail").textContent = S.email; $("#doneRef").textContent = r.ref || "";
+    clearDraft();
     showStep(3);
   } catch (err) {
     console.error(err);

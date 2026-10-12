@@ -427,7 +427,7 @@ const activitiesOf = gid => state.activities.filter(a => a.groupId === gid).slic
 const eventsOf = gid => state.events.filter(x => x.groupId === gid).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
 const ACT_META = {
   created: { label: "加入群組", cls: "b-ok" }, request_confirmed: { label: "由申請確認加入", cls: "b-ok" },
-  renewed: { label: "續訂", cls: "b-ok" }, archived: { label: "封存", cls: "b-arch" }, unarchived: { label: "還原", cls: "b-ok" },
+  renewed: { label: "續訂", cls: "b-ok" }, topup: { label: "補款", cls: "b-ok" }, archived: { label: "封存", cls: "b-arch" }, unarchived: { label: "還原", cls: "b-ok" },
   deleted: { label: "刪除", cls: "b-expired" }, reminder: { label: "到期提醒", cls: "b-soon" }
 };
 const EVENT_TYPES = { checkin: "打卡挑戰", discussion: "主題討論", quiz: "小考", other: "其他" };
@@ -438,9 +438,40 @@ async function logActivity(groupId, member, type, detail) {
 }
 const fmtTs = iso => { const d = new Date(iso); return isNaN(d) ? "" : `${todayStrOf(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const todayStrOf = d => fmt(d.getFullYear(), d.getMonth() + 1, d.getDate());
-const METHODS = { paypal: { label: "PayPal", ref: "PayPal 交易編號" }, mx_bank: { label: "墨西哥銀行轉帳", ref: "SPEI 追蹤碼" } };
-async function markReq(r, status, memberId) {
-  const o = { ...r, status, handledAt: todayStr() }; if (memberId) o.memberId = memberId;
+const METHODS = { paypal: { label: "PayPal", ref: "PayPal 交易編號" }, mx_bank: { label: "墨西哥銀行轉帳", ref: "轉帳追蹤碼／參考編號" } };
+/* 報名頁送來的 method 一律是 paypal；實際付款方式由幣別判斷：MXN＝銀行轉帳（先聯繫取得帳號） */
+const payMethod = r => (r.method === "mx_bank" || r.expectedCurrency === "MXN") ? "mx_bank" : "paypal";
+/* 報名頁把 IG 帳號與勾選結果寫在備註開頭的 [標籤]；這裡拆出來分開顯示 */
+function parseNote(note) {
+  let rest = String(note || ""), ig = "", agreed = "", voice = false;
+  rest = rest.replace(/\[IG @([A-Za-z0-9._]+)\]/, (_, h) => { ig = h; return ""; })
+    .replace(/\[已同意規則與不退款 ([^\]]*)\]/, (_, t) => { agreed = t; return ""; })
+    .replace(/\[VIP：已傳語音訊息給 Ben\]/, () => { voice = true; return ""; });
+  return { ig, agreed, voice, rest: rest.replace(/^[ \u3000]+/, "").trim() };
+}
+const reqMemberNote = r => { const p = parseNote(r.note); return [p.ig ? `IG @${p.ig}` : "", p.rest].filter(Boolean).join("　"); };
+const isVipG = g => /vip/i.test(g.name || "");
+/* 程度不符時的換算（用目前的價格即時算）：
+   A 零基礎→VIP：補差額＝VIP 價 − 零基礎價（同方案、同幣別）
+   B VIP→零基礎：延長＝VIP 付款額 ÷ 零基礎同方案價 × 方案月數，四捨五入成整月 */
+function levelHint(r, target) {
+  const g = groupById(r.groupId);
+  if (!g || !target || isVipG(g) === isVipG(target)) return null;
+  const cur = r.expectedCurrency || primaryCur(g), plan = r.plan, paid = Number(r.expectedAmount) || 0, pl = PLANS[plan]?.label || "";
+  const cant = { text: `改入「${target.name}」：${pl}方案在 ${CUR[cur]?.name || cur} 沒有同時定價，請自行換算` };
+  if (!isVipG(g)) {
+    const to = priceOf(target, plan, cur), from = priceOf(g, plan, cur);
+    if (!(to > 0 && from > 0)) return cant;
+    const diff = Math.max(0, to - from);
+    return { kind: "upgrade", diff, cur, text: `改入「${target.name}」：補差額 ${money(diff, cur)}（${money(to, cur)} − ${money(from, cur)}）` };
+  }
+  const unit = priceOf(target, plan, cur);
+  if (!(unit > 0 && paid > 0)) return cant;
+  const n = PLANS[plan].months, raw = paid / unit * n, months = Math.max(1, Math.round(raw));
+  return { kind: "downgrade", months, cur, text: `改入「${target.name}」：延長為 ${months} 個月（${money(paid, cur)} ÷ ${money(unit, cur)} × ${n} ≈ ${raw.toFixed(2)} 個月）` };
+}
+async function markReq(r, status, memberId, extra) {
+  const o = { ...r, status, handledAt: todayStr(), ...(extra || {}) }; if (memberId) o.memberId = memberId;
   await store.put("requests", o);
 }
 /* 群組報名狀態：公開／即將額滿＝報名頁看得到、可報名；額滿／不公開＝報名頁不出現。
@@ -572,6 +603,7 @@ function rowHTML(m, showGroup) {
       <div class="acts">
         <button class="btn sm" data-act="edit-member" data-id="${m.id}">編輯資料</button>
         <button class="btn sm" data-act="history" data-id="${m.id}">付費記錄</button>
+        <button class="btn sm" data-act="add-topup" data-id="${m.id}">補款</button>
         ${m.archived ? `<button class="btn sm" data-act="unarchive" data-id="${m.id}">還原</button>` : `<button class="btn sm" data-act="archive" data-id="${m.id}">封存</button>`}
         <button class="btn sm danger" data-act="del-member" data-id="${m.id}">刪除成員</button>
       </div>
@@ -719,14 +751,14 @@ async function delEvent(id) {
 }
 
 function reqHTML(r) {
-  const g = groupById(r.groupId), match = matchMember(r), dup = dupRef(r), meth = METHODS[r.method] || METHODS.paypal;
+  const g = groupById(r.groupId), match = matchMember(r), dup = dupRef(r), pm = payMethod(r), meth = METHODS[pm], pn = parseNote(r.note);
   const pending = r.status === "pending";
   const hasAge = r.age !== "" && r.age != null;
   const shot = String(r.screenshotUrl || "").startsWith("https://") ? `<a class="btn sm" href="${esc(r.screenshotUrl)}" target="_blank" rel="noopener">查看截圖</a>` : `<span class="hint">沒有截圖</span>`;
   const statusTxt = r.status === "confirmed" ? `已加入${memberById(r.memberId) ? `：${esc(memberById(r.memberId).name)}` : ""}（${esc(r.handledAt || "")}）` : r.status === "rejected" ? `已拒絕（${esc(r.handledAt || "")}）` : "";
   return `<div class="req ${r.status}">
     <div class="req-top"><div><b>${esc(r.name)}</b><span class="sub">${[r.nationality ? esc(r.nationality) : "", hasAge ? `${esc(r.age)} 歲` : "", esc(r.email)].filter(Boolean).join("　")}</span></div>
-      <span class="badge ${r.method === "mx_bank" ? "b-soon" : "b-ok"}">${meth.label}</span></div>
+      <span class="badge ${pm === "mx_bank" ? "b-soon" : "b-ok"}">${meth.label}</span></div>
     <dl class="kv">
       <dt>WhatsApp</dt><dd>${waLink(r.whatsapp)}</dd>
       <dt>群組與方案</dt><dd>${esc(g ? g.name : (r.groupName || "（群組已刪除）"))}，${PLANS[r.plan]?.label || ""}方案</dd>
@@ -734,12 +766,16 @@ function reqHTML(r) {
       <dt>${meth.ref}</dt><dd>${esc(r.ref)}${dup ? `<span class="warnTxt">這個編號已出現過，請小心重複</span>` : ""}</dd>
       <dt>付款時間</dt><dd>${esc((r.paidAt || "").replace("T", " "))}（學員填寫的當地時間）</dd>
       <dt>送出時間</dt><dd>${esc(fmtTs(r.createdAt))}</dd>
-      ${r.note ? `<dt>備註</dt><dd>${esc(r.note).replace(/\n/g, "<br>")}</dd>` : ""}
+      ${pn.ig ? `<dt>Instagram</dt><dd><a href="https://instagram.com/${esc(pn.ig)}" target="_blank" rel="noopener">@${esc(pn.ig)}</a></dd>` : ""}
+      ${pn.agreed ? `<dt>學員勾選</dt><dd>已同意規則與不退款${pn.voice ? "、已傳語音訊息給 Ben" : ""}</dd>` : ""}
+      ${pn.rest ? `<dt>備註</dt><dd>${esc(pn.rest).replace(/\n/g, "<br>")}</dd>` : ""}
     </dl>
     ${pending && match ? `<p class="notice info">信箱和現有成員「${esc(match.name)}」相同，可能是續訂。</p>` : ""}
+    ${(() => { const hs = pending ? state.groups.filter(x => x.id !== r.groupId).map(x => levelHint(r, x)).filter(Boolean) : []; return hs.length ? `<p class="notice info" style="margin-top:8px"><span><b>程度不符時</b>　${hs.map(h => esc(h.text)).join("；")}</span></p>` : ""; })()}
     <div class="acts" style="margin-top:10px">
       ${shot}
       ${pending ? `${match ? `<button class="btn sm primary" data-act="req-renew" data-id="${r.id}">續訂 ${esc(match.name)}</button><button class="btn sm" data-act="req-accept" data-id="${r.id}">當新成員加入</button>` : `<button class="btn sm primary" data-act="req-accept" data-id="${r.id}">確認並加入</button>`}
+        ${state.groups.length > 1 ? `<button class="btn sm" data-act="req-move" data-id="${r.id}">改加入其他群組</button>` : ""}
         <button class="btn sm danger" data-act="req-reject" data-id="${r.id}">拒絕</button>`
         : `<span class="hint">${statusTxt}</span><button class="btn sm ghost" data-act="req-del" data-id="${r.id}">刪除</button>`}
     </div></div>`;
@@ -876,16 +912,17 @@ async function delGroup() {
 
 /* ---- 成員 ---- */
 function reqNote(r) {
-  const meth = METHODS[r.method] || METHODS.paypal;
-  return `<p class="notice info">資料來自訂閱申請。請先到 ${r.method === "mx_bank" ? "銀行" : "PayPal"} 核對 ${meth.ref} <b>${esc(r.ref)}</b> 與金額 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}，再儲存。</p>`;
+  const meth = METHODS[payMethod(r)];
+  return `<p class="notice info">資料來自訂閱申請。請先到 ${payMethod(r) === "mx_bank" ? "銀行" : "PayPal"} 核對 ${meth.ref} <b>${esc(r.ref)}</b> 與金額 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}，再儲存。</p>`;
 }
 function openMemberForm(groupId, memberId, opts = {}) {
   const g = groupById(groupId), editing = memberId ? memberById(memberId) : null, req = opts.request || null;
   const keys = offeredPlans(g);
-  const m = editing || (req ? { name: req.name, nationality: req.nationality || "", age: req.age ?? "", email: req.email || "", whatsapp: req.whatsapp || "", plan: req.plan, paidAt: req.paidAt || nowLocal(), activatedAt: todayStr(), expiresAt: "", note: req.note || "" } : { name: "", nationality: "", age: "", email: "", plan: keys[0], paidAt: nowLocal(), activatedAt: todayStr(), expiresAt: "", note: "" });
+  const m = editing || (req ? { name: req.name, nationality: req.nationality || "", age: req.age ?? "", email: req.email || "", whatsapp: req.whatsapp || "", plan: req.plan, paidAt: req.paidAt || nowLocal(), activatedAt: todayStr(), expiresAt: "", note: reqMemberNote(req) } : { name: "", nationality: "", age: "", email: "", plan: keys[0], paidAt: nowLocal(), activatedAt: todayStr(), expiresAt: "", note: "" });
   const planKeys = [...new Set([m.plan, ...keys])];
-  openDlg(editing ? "編輯成員" : req ? "加入成員（來自訂閱申請）" : `新增成員到「${g.name}」`, `<form id="mform" class="form" autocomplete="off">
+  openDlg(editing ? "編輯成員" : req ? (opts.movedFrom ? "加入成員（改加入其他群組）" : "加入成員（來自訂閱申請）") : `新增成員到「${g.name}」`, `<form id="mform" class="form" autocomplete="off">
     ${req ? reqNote(req) : ""}
+    ${opts.movedFrom ? `<p class="notice info">這位學員付款時選的是「${esc(groupById(opts.movedFrom)?.name || "")}」，改加入「${esc(g.name)}」。${opts.months ? `到期日已先照 ${opts.months} 個月預填，可再修改。` : ""}</p>` : ""}
     <label><span class="lbl">姓名</span><input name="mname" required maxlength="60" value="${esc(m.name)}"></label>
     <div class="grid2">
       <label><span class="lbl">國籍</span><input name="nationality" list="nats" maxlength="30" value="${esc(m.nationality)}"></label>
@@ -910,7 +947,8 @@ function openMemberForm(groupId, memberId, opts = {}) {
 
   const recalc = who => {
     if (who === "expiresAt") expDirty = true;
-    const act = v("activatedAt"), months = PLANS[v("plan")].months;
+    if (who === "plan") opts = { ...opts, months: 0 };
+    const act = v("activatedAt"), months = opts.months || PLANS[v("plan")].months;
     if (!editing && !expDirty && act) f.elements.expiresAt.value = addMonths(act, months, dayOf(act));
     if (!editing && who === "plan" && !f.elements.amount.dataset.touched) {
       const d = defaultPay(g, v("plan")); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
@@ -940,12 +978,12 @@ function openMemberForm(groupId, memberId, opts = {}) {
     if (!editing) {
       obj.anchorDay = dayOf(obj.activatedAt);
       obj.archived = false;
-      obj.payments = [readPay(f, { kind: "first", plan: obj.plan, periodStart: obj.activatedAt, periodEnd: obj.expiresAt, ...(req ? { ref: req.ref, method: req.method } : {}) })];
+      obj.payments = [readPay(f, { kind: "first", plan: obj.plan, periodStart: obj.activatedAt, periodEnd: obj.expiresAt, ...(req ? { ref: req.ref, method: payMethod(req) } : {}) })];
     } else if (editing.activatedAt !== obj.activatedAt) obj.anchorDay = dayOf(obj.activatedAt);
     closeDlg();
     try {
       await store.put("members", obj);
-      if (req) { await markReq(req, "confirmed", obj.id); logActivity(groupId, obj, "request_confirmed", `${PLANS[obj.plan].label}方案，到期 ${obj.expiresAt}`); }
+      if (req) { await markReq(req, "confirmed", obj.id, opts.movedFrom ? { groupId, groupName: g.name, movedFrom: opts.movedFrom } : null); logActivity(groupId, obj, "request_confirmed", `${PLANS[obj.plan].label}方案，到期 ${obj.expiresAt}${opts.movedFrom ? `（付款時選的是「${groupById(opts.movedFrom)?.name || ""}」）` : ""}`); }
       else if (!editing) logActivity(groupId, obj, "created", `${PLANS[obj.plan].label}方案，到期 ${obj.expiresAt}`);
       toast(editing ? "已儲存變更" : "已新增成員");
     } catch (err) { console.error(err); toast("儲存失敗"); }
@@ -1017,7 +1055,7 @@ function openRenew(id, opts = {}) {
   f.onsubmit = async e => {
     e.preventDefault();
     const start = v("start"), plan = v("plan"), exp = newExp();
-    const pay = readPay(f, { kind: "renew", plan, periodStart: start, periodEnd: exp, ...(req ? { ref: req.ref, method: req.method } : {}) });
+    const pay = readPay(f, { kind: "renew", plan, periodStart: start, periodEnd: exp, ...(req ? { ref: req.ref, method: payMethod(req) } : {}) });
     const { archivedAt, ...base } = m;
     const obj = { ...base, archived: false, plan, expiresAt: exp, paidAt: pay.paidAt, anchorDay: anchorOf(start), payments: [...(m.payments || []), pay] };
     closeDlg();
@@ -1034,20 +1072,75 @@ function openRenew(id, opts = {}) {
 function openHistory(id) {
   const m = memberById(id), pays = (m.payments || []).slice().sort((a, b) => (b.paidAt || "").localeCompare(a.paidAt || ""));
   openDlg(`付費記錄：${m.name}`, pays.length ? `<div>${pays.map(p => `<div class="pay-row">
-      <div><b>${p.kind === "first" ? "首次付費" : "續訂"}</b>　${PLANS[p.plan]?.label || ""}方案
-        <span class="sub">付費 ${esc((p.paidAt || "").replace("T", " ")) || "未填"}，涵蓋 ${esc(p.periodStart)} 到 ${esc(p.periodEnd)}${p.ref ? `，編號 ${esc(p.ref)}` : ""}</span></div>
+      <div><b>${p.kind === "first" ? "首次付費" : p.kind === "topup" ? "補款" : "續訂"}</b>　${p.kind === "topup" ? "" : (PLANS[p.plan]?.label || "") + "方案"}
+        <span class="sub">付費 ${esc((p.paidAt || "").replace("T", " ")) || "未填"}，${p.kind === "topup" ? `不影響到期日${p.why ? `，${esc(p.why)}` : ""}` : `涵蓋 ${esc(p.periodStart)} 到 ${esc(p.periodEnd)}`}${METHODS[p.method] ? `，${METHODS[p.method].label}` : ""}${p.ref ? `，編號 ${esc(p.ref)}` : ""}</span></div>
       <div style="text-align:right"><b>${money(p.amount, p.currency)}</b>
         <span class="sub">${p.currency !== "TWD" ? `匯率 ${p.rate}，` : ""}台幣 ${money(p.twd, "TWD")}</span>
         <button class="btn sm danger" style="margin-top:4px" data-act="del-pay" data-mid="${m.id}" data-pid="${p.id}">刪除</button></div></div>`).join("")}</div>
     <hr><p class="twd">累計 ${money(memberTotal(m), "TWD")}</p>
-    <p class="hint">刪除記錄只會移除這筆帳，不會改動到期日。</p>`
-    : `<p class="hint">還沒有付費記錄。</p>`);
+    <p class="hint">刪除記錄只會移除這筆帳，不會改動到期日。</p>
+    <div class="acts" style="margin-top:8px"><button class="btn sm primary" data-act="add-topup" data-id="${m.id}">補款</button></div>`
+    : `<p class="hint">還沒有付費記錄。</p><div class="acts" style="margin-top:8px"><button class="btn sm primary" data-act="add-topup" data-id="${m.id}">補款</button></div>`);
 }
 async function delPay(mid, pid) {
   const m = memberById(mid); if (!m) return;
   const ok = await confirmBox("刪除這筆付費記錄？", "只會移除帳目，不會改動成員的到期日。", "刪除記錄");
   if (!ok) return;
   try { await store.put("members", { ...m, payments: (m.payments || []).filter(p => p.id !== pid) }); closeDlg(); toast("已刪除記錄"); } catch (e) { console.error(e); toast("刪除失敗"); }
+}
+
+/* ---- 改加入其他群組（程度不符時）---- */
+function openMove(id) {
+  const r = reqById(id); if (!r) return;
+  const others = state.groups.filter(g => g.id !== r.groupId);
+  if (!others.length) return toast("沒有其他群組可以改加入");
+  openDlg(`改加入其他群組：${r.name}`, `<form id="mvform" class="form">
+    <p class="hint">學員付款時選的是「${esc(groupById(r.groupId)?.name || r.groupName || "")}」，${PLANS[r.plan]?.label || ""}方案，付了 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}。</p>
+    <label><span class="lbl">改加入哪個群組</span><select name="to">${others.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join("")}</select></label>
+    <p class="notice info" id="mvhint" hidden></p>
+    <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">繼續：加入成員</button></div>
+  </form>`);
+  const f = $("#mvform");
+  const upd = () => {
+    const h = levelHint(r, groupById(f.elements.to.value)), el = $("#mvhint");
+    el.hidden = !h;
+    el.textContent = h ? h.text + (h.kind === "upgrade" ? "。補款請在加入後，到成員的「補款」按鈕記錄。" : h.kind === "downgrade" ? "。到期日會先照這個月數預填，你可以再改。" : "") : "";
+  };
+  f.addEventListener("input", upd); upd();
+  f.onsubmit = e => {
+    e.preventDefault();
+    const t = groupById(f.elements.to.value), h = levelHint(r, t);
+    closeDlg();
+    openMemberForm(t.id, null, { request: r, movedFrom: r.groupId, months: h && h.kind === "downgrade" ? h.months : 0 });
+  };
+}
+
+/* ---- 補款：只新增一筆收款，不改到期日（例如零基礎改 VIP 的補差額）---- */
+function openTopup(id) {
+  const m = memberById(id); if (!m) return;
+  const d = defaultPay(groupById(m.groupId), m.plan);
+  openDlg(`補款：${m.name}`, `<form id="tform" class="form" autocomplete="off">
+    <p class="hint">用在補差額這類額外收款。只會新增一筆收款記錄，不會改動到期日。</p>
+    ${payBlock(d.cur, "")}
+    <div class="grid2">
+      <label><span class="lbl">付費時間</span><input name="paidAt" type="datetime-local" value="${nowLocal()}"></label>
+      <label><span class="lbl">交易編號／追蹤碼 <span class="opt">(選填)</span></span><input name="ref" maxlength="80"></label>
+    </div>
+    <label><span class="lbl">說明 <span class="opt">(選填)</span></span><input name="why" maxlength="80" placeholder="例如：零基礎改 VIP 補差額"></label>
+    <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">新增補款</button></div>
+  </form>`);
+  const f = $("#tform"); watchPay(f, null); syncPay(f);
+  f.onsubmit = async e => {
+    e.preventDefault();
+    if (!(Number(f.elements.amount.value) > 0)) { toast("請填付款金額"); return; }
+    const pay = readPay(f, { kind: "topup", plan: m.plan, periodStart: "", periodEnd: "", ref: f.elements.ref.value.trim(), why: f.elements.why.value.trim() });
+    closeDlg();
+    try {
+      await store.put("members", { ...m, payments: [...(m.payments || []), pay] });
+      logActivity(m.groupId, m, "topup", `${money(pay.amount, pay.currency)}${pay.why ? "，" + pay.why : ""}`);
+      toast("已新增補款");
+    } catch (err) { console.error(err); toast("儲存失敗"); }
+  };
 }
 
 /* ---- 設定 ---- */
@@ -1117,6 +1210,8 @@ const actions = {
   "req-filter": (id, el) => { state.reqFilter = el.dataset.f; viewRequests(); },
   "req-accept": id => { const r = reqById(id); if (!r) return; if (!groupById(r.groupId)) return toast("找不到這個群組，可能已被刪除"); openMemberForm(r.groupId, null, { request: r }); },
   "req-renew": id => { const r = reqById(id), m = r && matchMember(r); if (m) openRenew(m.id, { request: r }); },
+  "req-move": id => openMove(id),
+  "add-topup": id => { closeDlg(); openTopup(id); },
   "req-reject": async id => {
     const r = reqById(id); if (!r) return;
     if (!(await confirmBox(`拒絕「${r.name}」的申請？`, "申請會移到「已處理」，不會加入成員。", "拒絕申請"))) return;
