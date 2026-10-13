@@ -49,6 +49,7 @@ ol.rules{margin:0;padding-left:20px;display:grid;gap:10px}
 .price{display:grid;gap:6px;margin:6px 0}
 .price div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:6px 0}
 .price b{white-space:nowrap}
+.price .was{font-size:.82em;font-weight:500;color:var(--soft,#8a8a8a);text-decoration:line-through;margin-right:6px;white-space:nowrap}
 .note{color:var(--soft);font-size:14px;margin:8px 0 0}
 .cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .btn{display:inline-block;text-decoration:none;text-align:center;border:1px solid var(--jade);background:var(--jade);color:#fff;font-weight:700;border-radius:12px;padding:12px 18px}
@@ -100,6 +101,7 @@ const C = {
     price: "Suscripción", priceNote: "Precio promocional actual, sujeto a aumento en cualquier momento.",
     monthly: "Mensual", bimonthly: "Bimestral", forTwo: "por los dos meses",
     priceSoon: "Precio por anunciar.",
+    promoNote: d => `Promoción válida hasta el ${d} (hora de Taiwán). Solo para nuevas inscripciones: las renovaciones se pagan al precio normal.`,
     basic: {
       name: "Gimnasio de Chino Básico", pos: "Para empezar desde cero: no necesitas saber nada de chino",
       tagline: "Acompañamiento diario para que tomes el hábito de hablar chino todos los días, con confianza, y vayas construyendo tu base poco a poco.",
@@ -187,6 +189,7 @@ const C = {
     price: "訂閱費用", priceNote: "現在是優惠價格喔！",
     monthly: "月訂", bimonthly: "雙月", forTwo: "兩個月合計",
     priceSoon: "價格即將公布。",
+    promoNote: d => `優惠價至 ${d} 止（台灣時間）。僅限新學員，續訂一律以原價計算。`,
     basic: {
       name: "中文健身房・零基礎群組", pos: "不需要任何中文基礎",
       tagline: "陪伴式學習，建立每天開口說中文的習慣與自信，一點一點奠定你的中文基礎。",
@@ -261,13 +264,27 @@ const C = {
 
 /* 價格：預設值是文案上的價格；能連上報名系統時，改用系統裡的最新價格 */
 let PRICES = { monthly: { MXN: 300, USD: 18 }, bimonthly: { MXN: 550, USD: 35 } };
-const PRICES_BASIC = { monthly: { MXN: 150, USD: 9 }, bimonthly: { MXN: 280, USD: 17 } };
+let PRICES_BASIC = { monthly: { MXN: 150, USD: 9 }, bimonthly: { MXN: 280, USD: 17 } };
 const fmt = (n, c) => c === "MXN" ? `$${n} MXN` : `US$ ${n}`;
-const priceHtml = (c, P = PRICES, note = c.priceNote) => {
+/* 優惠：報名系統只在優惠生效時才回傳 promo（{until, table}），截止日由後端以台灣日期判斷 */
+let PROMO = { basic: null, vip: null };
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+function fmtYmd(s) {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return "";
+  return LANG === "zh" ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : `${Number(m[3])} de ${MESES[Number(m[2]) - 1]} de ${m[1]}`;
+}
+const priceHtml = (c, P = PRICES, note = c.priceNote, promo = null) => {
+  let anyPromo = false;
   const row = (k, extra) => { const p = P[k]; if (!p) return "";
-    const parts = ["MXN", "USD"].filter(x => p[x] > 0).map(x => fmt(p[x], x)).join(" / ");
+    const parts = ["MXN", "USD"].filter(x => p[x] > 0).map(x => {
+      const pv = Number(promo && promo.table && promo.table[x] && promo.table[x][k]);
+      if (pv > 0 && pv < p[x]) { anyPromo = true; return `<span class="was">${fmt(p[x], x)}</span>${fmt(pv, x)}`; }
+      return fmt(p[x], x);
+    }).join(" / ");
     return parts ? `<div><span>${c[k]}${extra ? " <small>(" + extra + ")</small>" : ""}</span><b>${parts}</b></div>` : ""; };
-  return `<div class="price">${row("monthly")}${row("bimonthly", c.forTwo)}</div><p class="note">${note}</p>`;
+  const rows = `${row("monthly")}${row("bimonthly", c.forTwo)}`;
+  // 優惠期間改顯示優惠說明（原本的「每天約 5 MXN」是照原價算的，優惠時不準）
+  return `<div class="price">${rows}</div><p class="note">${anyPromo ? c.promoNote(fmtYmd(promo.until)) : note}</p>`;
 };
 
 /* 群組報名狀態：在群組管理頁（form/）設定，會寫進 portalStatus 的 group-basic / group-vip。
@@ -323,7 +340,7 @@ function render(){
       <h3>${b.howTitle}</h3>${feat(b.how)}
       <h3>📅 ${b.weekTitle}</h3>${feat(b.week.map(([d,t,x]) => ["▫️", d + " · " + t, x]))}
       <h3>${b.rulesTitle}</h3><ol class="rules">${b.rules.map(r => `<li>${r}</li>`).join("")}</ol>
-      <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES_BASIC, b.priceNote)}
+      <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES_BASIC, b.priceNote, PROMO.basic)}
       <p class="note">${b.screen}</p>
       ${STATE.basic === "full" ? `<p class="note">${c.waitNote}</p>` : ""}
       ${STATE.basic === "closed" ? "" : `<div class="hook" style="margin-top:16px"><p>${b.join}</p></div>`}
@@ -337,7 +354,7 @@ function render(){
       <h3>${v.getTitle}</h3>${feat(v.get)}
       <p class="note">${v.weekly}</p>
       <h3>${v.rulesTitle}</h3><ol class="rules">${v.rules.map(r => `<li>${r}</li>`).join("")}</ol>
-      <h3>💰 ${c.price}</h3>${priceHtml(c)}
+      <h3>💰 ${c.price}</h3>${priceHtml(c, PRICES, c.priceNote, PROMO.vip)}
       <p class="note">${v.screen}</p>
       ${STATE.vip === "full" ? `<p class="note">${c.waitNote}</p>` : ""}
       ${STATE.vip === "closed" ? "" : `<div class="hook" style="margin-top:16px"><p>${v.closing}</p><p>${v.how}</p></div>`}
@@ -361,11 +378,18 @@ loadState();
   try {
     const u = new URL(API_URL); u.searchParams.set("action", "groups");
     const r = await (await fetch(u.toString())).json();
-    const g = (r.groups || []).find(x => /vip/i.test(x.name || ""));
-    if (!g || !g.priceTable) return;
-    const t = g.priceTable, next = {};
-    ["monthly", "bimonthly"].forEach(k => { const o = {}; ["MXN", "USD"].forEach(cur => { if (t[cur] && Number(t[cur][k]) > 0) o[cur] = Number(t[cur][k]); }); if (Object.keys(o).length) next[k] = o; });
-    if (Object.keys(next).length) { PRICES = next; render(); }
+    const pick = g => {
+      if (!g || !g.priceTable) return null;
+      const t = g.priceTable, next = {};
+      ["monthly", "bimonthly"].forEach(k => { const o = {}; ["MXN", "USD"].forEach(cur => { if (t[cur] && Number(t[cur][k]) > 0) o[cur] = Number(t[cur][k]); }); if (Object.keys(o).length) next[k] = o; });
+      return Object.keys(next).length ? next : null;
+    };
+    // 報名系統只列出「公開」的群組；VIP 用名稱含 VIP 判斷，其餘當零基礎
+    const gv = (r.groups || []).find(x => /vip/i.test(x.name || "")), gb = (r.groups || []).find(x => !/vip/i.test(x.name || ""));
+    const pv = pick(gv), pb = pick(gb);
+    if (pv) { PRICES = pv; PROMO.vip = gv.promo || null; }
+    if (pb) { PRICES_BASIC = pb; PROMO.basic = gb.promo || null; }
+    if (pv || pb) render();
   } catch (e) { /* 維持預設價格 */ }
 })();
 </script>

@@ -52,6 +52,8 @@ input[aria-invalid=true],select[aria-invalid=true]{border-color:var(--red)}
 .plan .pl-sub{grid-column:2;color:var(--soft);font-size:14px}
 .plan .pl-price{grid-row:1/3;grid-column:3;font-weight:700;font-size:18px;display:grid;justify-items:end;line-height:1.35}
 .plan .pl-price small{font-size:13px;font-weight:500;color:var(--soft)}
+.was{font-size:.78em;font-weight:500;color:var(--soft);text-decoration:line-through;margin-right:6px}
+.promo-tag{display:inline-block;font-size:12px;font-weight:700;color:var(--jade-d);margin-left:4px}
 .plan:has(input:checked){border-color:var(--jade);background:var(--jade-l)}
 .plan:has(input:focus-visible){outline:3px solid #F2B84B;outline-offset:2px}
 
@@ -147,6 +149,7 @@ input[type=file]{position:absolute;left:-9999px}
 
     <div><span class="lbl">Plan</span>
       <div class="plans" id="plans"></div>
+      <p class="hint" id="promoNote" hidden style="margin-top:8px"></p>
       <p class="fe" data-for="plan"></p></div>
 
     <label><span class="lbl">Comentarios <span class="opt">(opcional)</span></span>
@@ -165,6 +168,7 @@ input[type=file]{position:absolute;left:-9999px}
     <div class="card">
       <h2>Resumen</h2>
       <dl class="sum" id="sum"></dl>
+      <p class="hint" id="priceNote" hidden style="margin-top:10px"></p>
     </div>
 
     <div class="card form">
@@ -367,10 +371,26 @@ function buildGroup(){
   sel.innerHTML = (S.groups.length > 1 ? `<option value="">${esc(L("Elige un grupo", "請選擇群組"))}</option>` : "") + S.groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("");
   sel.value = v;
 }
-/* 這個方案有定價的所有幣別（主要幣別排第一） */
+/* 這個方案有定價的所有幣別（主要幣別排第一）。群組目前有優惠（後端只在生效時才給 g.promo）的話，
+   amount 是優惠價、list 是原價、promo=true；續訂不適用優惠，到付款步驟後端會改回原價。 */
 function pricesOf(g, plan) {
   const t = g.priceTable || {}, order = [g.currency, ...Object.keys(t).filter(c => c !== g.currency)];
-  return order.filter(c => t[c] && Number(t[c][plan]) > 0).map(c => ({ currency: c, amount: t[c][plan] }));
+  const pt = (g.promo && g.promo.table) || {};
+  return order.filter(c => t[c] && Number(t[c][plan]) > 0).map(c => {
+    const list = Number(t[c][plan]), pv = Number(pt[c] && pt[c][plan]);
+    return pv > 0 && pv < list ? { currency: c, amount: pv, list, promo: true } : { currency: c, amount: list };
+  });
+}
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+function fmtYmd(s) {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return "";
+  return LANG === "zh" ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : `${Number(m[3])} de ${MESES[Number(m[2]) - 1]} de ${m[1]}`;
+}
+const moneyWas = o => o.promo ? `<span class="was">${esc(money(o.list != null ? o.list : o.listAmount, o.currency))}</span>` : "";
+function promoText(until) {
+  const d = fmtYmd(until);
+  return L(`Promoción válida hasta el ${d} (hora de Taiwán). Solo para nuevas inscripciones: las renovaciones se pagan al precio normal.`,
+           `優惠價至 ${d} 止（台灣時間）。僅限新學員，續訂一律以原價計算。`);
 }
 function onGroup() {
   const id = $("[name=group]", f1).value;
@@ -378,12 +398,15 @@ function onGroup() {
   const d = $("#groupDesc"); d.hidden = !(S.group && S.group.desc); d.textContent = S.group ? (S.group.desc || "") : "";
   renderConsents();
   const box = $("#plans");
-  if (!S.group) { box.innerHTML = `<p class="hint">${esc(L("Elige un grupo para ver los planes.", "請先選擇群組，才會顯示方案。"))}</p>`; S.plan = ""; return; }
+  if (!S.group) { box.innerHTML = `<p class="hint">${esc(L("Elige un grupo para ver los planes.", "請先選擇群組，才會顯示方案。"))}</p>`; S.plan = ""; $("#promoNote").hidden = true; return; }
   const keys = Object.keys(PLANS).filter(k => pricesOf(S.group, k).length);
   if (!keys.includes(S.plan)) S.plan = "";
   box.innerHTML = keys.map(k => `<label class="plan"><input type="radio" name="plan" value="${k}" ${S.plan === k ? "checked" : ""}>
     <span class="pl-name">${planName(k)}</span><span class="pl-sub">${planSub(k)}</span>
-    <span class="pl-price">${pricesOf(S.group, k).map((o, i) => i ? `<small>${money(o.amount, o.currency)}</small>` : money(o.amount, o.currency)).join("")}</span></label>`).join("");
+    <span class="pl-price">${pricesOf(S.group, k).map((o, i) => i ? `<small>${moneyWas(o)}${esc(money(o.amount, o.currency))}</small>` : `<span>${moneyWas(o)}${esc(money(o.amount, o.currency))}</span>`).join("")}</span></label>`).join("");
+  const pn = $("#promoNote"), pr = S.group.promo;
+  pn.hidden = !(pr && pr.until && keys.some(k => pricesOf(S.group, k).some(o => o.promo)));
+  if (!pn.hidden) pn.textContent = promoText(pr.until);
 }
 f1.addEventListener("change", e => {
   if (e.target.name === "group") onGroup();
@@ -481,7 +504,7 @@ f1.addEventListener("submit", async e => {
   S.country = f1.elements.country.value; S.email = f1.elements.email.value.trim();
   const btn = $("#next"); btn.disabled = true; setT(btn, "Cargando…");
   try {
-    const info = await api("payinfo", { groupId: S.group.id, plan: S.plan, country: S.country });
+    const info = await getPayInfo();
     if (!info.ok) throw new Error(info.error || "api");
     S.info = info; S.shot = null;
     fillStep2();
@@ -492,6 +515,18 @@ f1.addEventListener("submit", async e => {
   } finally { btn.disabled = false; setT(btn, "Siguiente"); }
 });
 
+/* 查價：用 POST 帶 Email（不放進網址），後端才能判斷是不是續訂（續訂不適用優惠價）。
+   舊版後端不認得 POST 查價（會回 ok:false），就退回舊的 GET 查價：沒有 Email，一律當新學員。 */
+async function getPayInfo() {
+  const params = { groupId: S.group.id, plan: S.plan, country: S.country };
+  if (DEMO) return api("payinfo", params);
+  try {
+    const r = await post({ action: "payinfo", ...params, email: S.email });
+    if (r && r.ok) return r;
+  } catch (e) { console.error(e); }
+  return api("payinfo", params);
+}
+
 /* ---------- 第 2 步：付款資訊 ---------- */
 function copyRow(text) { return `<div class="copyrow"><b>${esc(text)}</b><button type="button" class="btn sm" data-copy="${esc(text)}">${esc(L("Copiar", "複製"))}</button></div>`; }
 function renderSum(){
@@ -500,12 +535,20 @@ function renderSum(){
 function renderCurOpts(){
   const i = S.info;
   $("#curOpts").innerHTML = i.options.map(o => `<label class="plan"><input type="radio" name="cur" value="${o.currency}" ${o.currency === S.cur ? "checked" : ""}>
-    <span><b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${CUR_NAME()[o.currency] || o.currency}</span></span></label>`).join("");
+    <span>${moneyWas(o)}<b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${CUR_NAME()[o.currency] || o.currency}</span></span></label>`).join("");
+}
+/* 付款頁的價格說明：續訂（原價）或優惠價截止日 */
+function renderPriceNote() {
+  const i = S.info, n = $("#priceNote"); let t = "";
+  if (i.renewal) t = L("Como ya eres miembro de este grupo, esta es una renovación y se paga al precio normal (la promoción es solo para nuevas inscripciones).",
+                       "你已經是這個群組的成員，這是續訂，以原價計算（優惠價僅限新學員）。");
+  else if (i.options.some(o => o.promo) && i.promoUntil) t = promoText(i.promoUntil);
+  n.hidden = !t; n.textContent = t;
 }
 
 function fillStep2() {
   const i = S.info;
-  renderSum();
+  renderSum(); renderPriceNote();
   // 幣別：墨西哥人預設披索（有定價的話），其他人用主要幣別
   S.cur = (S.country === "MX" && i.options.some(o => o.currency === "MXN")) ? "MXN" : i.options[0].currency;
   renderCurOpts();
@@ -521,7 +564,7 @@ function renderMethod() {
   const i = S.info, mxn = isMxn();
   const opt = i.options.find(o => o.currency === S.cur) || i.options[0];
   $("#curBox").hidden = i.options.length < 2;
-  $("#total").textContent = money(opt.amount, opt.currency);
+  $("#total").innerHTML = moneyWas(opt) + esc(money(opt.amount, opt.currency));
   $("#paypalBox").hidden = mxn; $("#bankBox").hidden = !mxn;
   if (!mxn) {
     $("#bankBox").innerHTML = "";
@@ -619,6 +662,7 @@ f2.addEventListener("submit", async e => {
     groupId: S.group.id, plan: S.plan,
     method: "paypal",
     currency: S.cur,
+    quotedAmount: Number((S.info.options.find(o => o.currency === S.cur) || S.info.options[0]).amount),   // 付款頁上顯示的金額（只供對照）
     ref: f2.elements.ref.value.trim(),
     paidAt: f2.elements.paidAt.value,
     note: [`[已同意規則與不退款 ${new Date().toISOString().slice(0, 16)}Z]`, isVip(S.group) ? "[VIP：已傳語音訊息給 Ben]" : "", f1.elements.note.value.trim()].filter(Boolean).join(" "),
@@ -647,7 +691,7 @@ function applyLang(){
   renderConsents();
   buildCountry();
   if (S.groups.length) { buildGroup(); onGroup(); }
-  if (S.info && S.group && !f2.hidden) { renderSum(); renderCurOpts(); renderMethod(); }
+  if (S.info && S.group && !f2.hidden) { renderSum(); renderPriceNote(); renderCurOpts(); renderMethod(); }
   clearErrs();
 }
 $("#langsw").addEventListener("click", e => {

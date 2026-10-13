@@ -451,21 +451,21 @@ function parseNote(note) {
 }
 const reqMemberNote = r => { const p = parseNote(r.note); return [p.ig ? `IG @${p.ig}` : "", p.rest].filter(Boolean).join("　"); };
 const isVipG = g => /vip/i.test(g.name || "");
-/* 程度不符時的換算（用目前的價格即時算）：
-   A 零基礎→VIP：補差額＝VIP 價 − 零基礎價（同方案、同幣別）
-   B VIP→零基礎：延長＝VIP 付款額 ÷ 零基礎同方案價 × 方案月數，四捨五入成整月 */
+/* 程度不符時的換算（目標群組用「現在實際價」，有優惠就是優惠價；來源用學員實際付的金額）：
+   A 零基礎→VIP：補差額＝VIP 現價 − 學員已付（同方案、同幣別）
+   B VIP→零基礎：延長＝VIP 付款額 ÷ 零基礎同方案現價 × 方案月數，四捨五入成整月 */
 function levelHint(r, target) {
   const g = groupById(r.groupId);
   if (!g || !target || isVipG(g) === isVipG(target)) return null;
   const cur = r.expectedCurrency || primaryCur(g), plan = r.plan, paid = Number(r.expectedAmount) || 0, pl = PLANS[plan]?.label || "";
   const cant = { text: `改入「${target.name}」：${pl}方案在 ${CUR[cur]?.name || cur} 沒有同時定價，請自行換算` };
   if (!isVipG(g)) {
-    const to = priceOf(target, plan, cur), from = priceOf(g, plan, cur);
-    if (!(to > 0 && from > 0)) return cant;
-    const diff = Math.max(0, to - from);
-    return { kind: "upgrade", diff, cur, text: `改入「${target.name}」：補差額 ${money(diff, cur)}（${money(to, cur)} − ${money(from, cur)}）` };
+    const to = effPriceOf(target, plan, cur);
+    if (!(to > 0 && paid > 0)) return cant;
+    const diff = Math.max(0, to - paid);
+    return { kind: "upgrade", diff, cur, text: `改入「${target.name}」：補差額 ${money(diff, cur)}（${money(to, cur)}${promoOf(target, plan, cur) ? "（優惠價）" : ""} − 已付 ${money(paid, cur)}）` };
   }
-  const unit = priceOf(target, plan, cur);
+  const unit = effPriceOf(target, plan, cur);
   if (!(unit > 0 && paid > 0)) return cant;
   const n = PLANS[plan].months, raw = paid / unit * n, months = Math.max(1, Math.round(raw));
   return { kind: "downgrade", months, cur, text: `改入「${target.name}」：延長為 ${months} 個月（${money(paid, cur)} ÷ ${money(unit, cur)} × ${n} ≈ ${raw.toFixed(2)} 個月）` };
@@ -498,15 +498,28 @@ const groupTotal = gid => membersOf(gid).reduce((s, m) => s + memberTotal(m), 0)
 const CUR_ORDER = ["TWD", "USD", "MXN"];
 const priceTableOf = g => (g.priceTable && Object.keys(g.priceTable).length) ? g.priceTable : (g.prices ? { [g.currency || "TWD"]: g.prices } : {});
 const priceOf = (g, plan, cur) => Number(priceTableOf(g)[cur]?.[plan]) || 0;
+/* 優惠價：群組有 promoTable（同價格表格式）與 promoUntil（yyyy-MM-dd）。台灣日期 ≤ 截止日、且比原價低才生效；
+   沒有截止日就不生效。和 Code.gs 的 activePromo_ 是同一套規則。續訂不適用優惠價（續訂一律用 priceOf）。 */
+const promoTableOf = g => (g.promoTable && typeof g.promoTable === "object") ? g.promoTable : {};
+const twToday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+const promoActive = g => /^\d{4}-\d{2}-\d{2}$/.test(g.promoUntil || "") && twToday() <= g.promoUntil;
+const promoOf = (g, plan, cur) => {
+  if (!promoActive(g)) return 0;
+  const v = Number(promoTableOf(g)[cur]?.[plan]) || 0, list = priceOf(g, plan, cur);
+  return v > 0 && v < list ? v : 0;
+};
+const effPriceOf = (g, plan, cur) => promoOf(g, plan, cur) || priceOf(g, plan, cur);   // 新學員現在實際要付的價格
 const groupCurs = g => CUR_ORDER.filter(c => Object.values(priceTableOf(g)[c] || {}).some(v => Number(v) > 0));
 const primaryCur = g => { const cs = groupCurs(g); return cs.includes(g.currency) ? g.currency : (cs[0] || "TWD"); };
 const offeredPlans = g => { const k = Object.keys(PLANS).filter(p => groupCurs(g).some(c => priceOf(g, p, c) > 0)); return k.length ? k : Object.keys(PLANS); };
-/* 這個方案預設收哪個幣別、多少錢：先看主要幣別，沒有就找第一個有價格的幣別 */
-function defaultPay(g, plan) {
+/* 這個方案預設收哪個幣別、多少錢：先看主要幣別，沒有就找第一個有價格的幣別。
+   eff=true（新增成員）用現在實際價（有優惠就用優惠價）；預設（續訂、補款）一律用原價 */
+function defaultPay(g, plan, eff) {
+  const price = eff ? effPriceOf : priceOf;
   const pc = primaryCur(g);
-  if (priceOf(g, plan, pc) > 0) return { cur: pc, amt: priceOf(g, plan, pc) };
-  const c = groupCurs(g).find(c => priceOf(g, plan, c) > 0);
-  return c ? { cur: c, amt: priceOf(g, plan, c) } : { cur: pc, amt: "" };
+  if (price(g, plan, pc) > 0) return { cur: pc, amt: price(g, plan, pc) };
+  const c = groupCurs(g).find(c => price(g, plan, c) > 0);
+  return c ? { cur: c, amt: price(g, plan, c) } : { cur: pc, amt: "" };
 }
 
 /* 到期日當天不算有效：d = 距離到期日的天數 */
@@ -647,10 +660,13 @@ function viewOverview() {
 function viewGroup(g) {
   const cs = groupCurs(g), pc = primaryCur(g);
   const fees = Object.entries(PLANS).filter(([k]) => cs.some(c => priceOf(g, k, c) > 0)).map(([k, p]) => {
-    const parts = cs.filter(c => priceOf(g, k, c) > 0).map(c => `<b>${money(priceOf(g, k, c), c)}</b>`).join(`<span class="sep">/</span>`);
+    const parts = cs.filter(c => priceOf(g, k, c) > 0).map(c => promoOf(g, k, c)
+      ? `<b>${money(promoOf(g, k, c), c)}</b> <s style="opacity:.55;font-size:.85em">${money(priceOf(g, k, c), c)}</s>`
+      : `<b>${money(priceOf(g, k, c), c)}</b>`).join(`<span class="sep">/</span>`);
     const approx = !priceOf(g, k, "TWD") && pc !== "TWD" && priceOf(g, k, pc) > 0 ? `<small>約 ${money(toTWD(priceOf(g, k, pc), pc, state.settings.rates[pc] || 1), "TWD")}</small>` : "";
     return `<span class="fee"><em>${p.label}</em>${parts}${approx}</span>`;
-  }).join("");
+  }).join("") + (Object.keys(promoTableOf(g)).length && g.promoUntil
+    ? `<span class="fee"><em>優惠價</em>${promoActive(g) ? `<b>至 ${esc(g.promoUntil)}（台灣時間當天 23:59）</b>` : `<span style="opacity:.6">已於 ${esc(g.promoUntil)} 結束，目前收原價</span>`}</span>` : "");
   const sec = (s, label) => `<button class="schip ${state.groupSection === s ? "on" : ""}" data-act="gsec" data-s="${s}">${label}</button>`;
 
   const gs = groupStatus(g);
@@ -762,7 +778,7 @@ function reqHTML(r) {
     <dl class="kv">
       <dt>WhatsApp</dt><dd>${waLink(r.whatsapp)}</dd>
       <dt>群組與方案</dt><dd>${esc(g ? g.name : (r.groupName || "（群組已刪除）"))}，${PLANS[r.plan]?.label || ""}方案</dd>
-      <dt>應付金額</dt><dd>${money(r.expectedAmount, r.expectedCurrency || "TWD")}</dd>
+      <dt>應付金額</dt><dd>${money(r.expectedAmount, r.expectedCurrency || "TWD")}${r.promoApplied ? `<span class="hint">（優惠價，原價 ${money(r.listAmount, r.expectedCurrency || "TWD")}）</span>` : r.isRenewal ? `<span class="hint">（續訂，原價）</span>` : ""}</dd>
       <dt>${meth.ref}</dt><dd>${esc(r.ref)}${dup ? `<span class="warnTxt">這個編號已出現過，請小心重複</span>` : ""}</dd>
       <dt>付款時間</dt><dd>${esc((r.paidAt || "").replace("T", " "))}（學員填寫的當地時間）</dd>
       <dt>送出時間</dt><dd>${esc(fmtTs(r.createdAt))}</dd>
@@ -770,6 +786,7 @@ function reqHTML(r) {
       ${pn.agreed ? `<dt>學員勾選</dt><dd>已同意規則與不退款${pn.voice ? "、已傳語音訊息給 Ben" : ""}</dd>` : ""}
       ${pn.rest ? `<dt>備註</dt><dd>${esc(pn.rest).replace(/\n/g, "<br>")}</dd>` : ""}
     </dl>
+    ${pending && Number(r.quotedAmount) > 0 && Number(r.quotedAmount) !== Number(r.expectedAmount) ? `<p class="notice info" style="margin-bottom:8px"><span><b>價格不符</b>　學員付款頁看到的是 ${money(r.quotedAmount, r.expectedCurrency || "TWD")}，現在應付 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}（多半是優惠剛結束，或剛判定為續訂）。請核對他實際付了多少，要不要接受由你決定。</span></p>` : ""}
     ${pending && match ? `<p class="notice info">信箱和現有成員「${esc(match.name)}」相同，可能是續訂。</p>` : ""}
     ${(() => { const hs = pending ? state.groups.filter(x => x.id !== r.groupId).map(x => levelHint(r, x)).filter(Boolean) : []; return hs.length ? `<p class="notice info" style="margin-top:8px"><span><b>程度不符時</b>　${hs.map(h => esc(h.text)).join("；")}</span></p>` : ""; })()}
     <div class="acts" style="margin-top:10px">
@@ -876,6 +893,12 @@ function openGroupForm(id) {
         ${Object.entries(PLANS).map(([k, p]) => `<span class="pl">${p.label}</span>${CUR_ORDER.map(c => `<input name="p_${k}_${c}" type="number" inputmode="decimal" min="0" step="any" aria-label="${p.label}（${CUR[c].name}）" value="${priceOf(g, k, c) || ""}">`).join("")}`).join("")}
       </div></div>
     <p class="hint">學員付款時，可以在有填價格的幣別裡選一種。墨西哥銀行轉帳固定用披索：披索欄有填就用那個價格，沒填就用匯率換算。改費用不會影響已經記錄的付款。</p>
+    <div><span class="lbl">優惠價（選填，要比上面的原價低；沒填的格子就收原價）</span>
+      <div class="ptable"><span></span>${CUR_ORDER.map(c => `<b>${CUR[c].name}</b>`).join("")}
+        ${Object.entries(PLANS).map(([k, p]) => `<span class="pl">${p.label}</span>${CUR_ORDER.map(c => `<input name="q_${k}_${c}" type="number" inputmode="decimal" min="0" step="any" aria-label="優惠價 ${p.label}（${CUR[c].name}）" value="${Number(promoTableOf(g)[c]?.[k]) || ""}">`).join("")}`).join("")}
+      </div></div>
+    <label><span class="lbl">優惠截止日（有填優惠價就必填；台灣時間當天 23:59 結束，之後自動恢復原價）</span><input type="date" name="promoUntil" value="${esc(g.promoUntil || "")}"></label>
+    <p class="hint">優惠價只給新學員；同一個 Email、同一個群組已經有成員紀錄的（含已封存、已過期）算續訂，一律收原價。群組介紹頁和報名頁會自動顯示原價、優惠價和截止日。</p>
     <label><span class="lbl">報名狀態（公開、即將額滿：學員可在報名頁選這個群組；額滿、不公開：報名頁不出現。介紹頁同步顯示）</span>
       <select name="status">${Object.entries(GSTAT).map(([k, v]) => `<option value="${k}" ${groupStatus(g) === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
     <label><span class="lbl">公開頁說明（選填，學員會看到）</span><textarea name="publicDesc" rows="2">${esc(g.publicDesc)}</textarea></label>
@@ -891,8 +914,21 @@ function openGroupForm(id) {
       if (Object.keys(row).length) table[c] = row;
     });
     if (!Object.keys(table).length) { toast("至少要填一個價格"); return; }
+    const promo = {};
+    for (const c of CUR_ORDER) {
+      const row = {};
+      for (const k of Object.keys(PLANS)) {
+        const v = Number(f.elements[`q_${k}_${c}`].value);
+        if (!(v > 0)) continue;
+        if (!(table[c]?.[k] > 0) || v >= table[c][k]) { toast(`優惠價要比原價低：${PLANS[k].label}（${CUR[c].name}）`); return; }
+        row[k] = v;
+      }
+      if (Object.keys(row).length) promo[c] = row;
+    }
+    const promoUntil = f.elements.promoUntil.value;
+    if (Object.keys(promo).length && !/^\d{4}-\d{2}-\d{2}$/.test(promoUntil)) { toast("有填優惠價，就要填優惠截止日"); return; }
     const want = f.elements.currency.value, currency = table[want] ? want : Object.keys(table)[0];
-    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency, prices: table[currency], priceTable: table, note: f.elements.note.value.trim(), status: f.elements.status.value, public: statusIsPublic(f.elements.status.value), publicDesc: f.elements.publicDesc.value.trim() };
+    const obj = { ...(id ? g : { id: uid(), createdAt: Date.now() }), name: f.elements.gname.value.trim(), currency, prices: table[currency], priceTable: table, promoTable: promo, promoUntil: Object.keys(promo).length ? promoUntil : "", note: f.elements.note.value.trim(), status: f.elements.status.value, public: statusIsPublic(f.elements.status.value), publicDesc: f.elements.publicDesc.value.trim() };
     state.view = "group"; state.groupId = obj.id; state.q = ""; state.filter = "all";
     closeDlg();
     try { await store.put("groups", obj); } catch (err) { console.error(err); toast("儲存失敗"); return; }
@@ -938,7 +974,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     </div>
     <label><span class="lbl">到期日</span><input name="expiresAt" type="date" required value="${esc(m.expiresAt)}"></label>
     <p class="hint" id="exphint"></p>
-    ${editing ? "" : (() => { const d = defaultPay(g, m.plan); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
+    ${editing ? "" : (() => { const d = defaultPay(g, m.plan, true); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
     <label><span class="lbl">備註</span><textarea name="note" rows="2">${esc(m.note)}</textarea></label>
     <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">${editing ? "儲存變更" : "新增成員"}</button></div>
   </form>`);
@@ -951,7 +987,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     const act = v("activatedAt"), months = opts.months || PLANS[v("plan")].months;
     if (!editing && !expDirty && act) f.elements.expiresAt.value = addMonths(act, months, dayOf(act));
     if (!editing && who === "plan" && !f.elements.amount.dataset.touched) {
-      const d = defaultPay(g, v("plan")); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
+      const d = defaultPay(g, v("plan"), true); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
     }
     const exp = v("expiresAt"); let hint = "";
     if (act && exp) {
@@ -962,7 +998,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     $("#exphint").textContent = hint;
     if (!editing) syncPay(f);
   };
-  if (!editing) watchPay(f, cur => priceOf(g, v("plan"), cur));
+  if (!editing) watchPay(f, cur => effPriceOf(g, v("plan"), cur));
   if (req && !editing) f.elements.amount.dataset.touched = "1";
   f.addEventListener("input", e => recalc(e.target.name));
   recalc();
