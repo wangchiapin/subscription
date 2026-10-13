@@ -101,7 +101,7 @@ const C = {
     price: "Suscripción", priceNote: "Precio promocional actual, sujeto a aumento en cualquier momento.",
     monthly: "Mensual", bimonthly: "Bimestral", forTwo: "por los dos meses",
     priceSoon: "Precio por anunciar.",
-    promoNote: d => `Promoción válida hasta el ${d} (hora de Taiwán). Solo para nuevas inscripciones: las renovaciones se pagan al precio normal.`,
+    promoNote: d => `Promoción válida hasta el ${d} (hora de Taiwán), también para renovaciones.`,
     basic: {
       name: "Gimnasio de Chino Básico", pos: "Para empezar desde cero: no necesitas saber nada de chino",
       tagline: "Acompañamiento diario para que tomes el hábito de hablar chino todos los días, con confianza, y vayas construyendo tu base poco a poco.",
@@ -165,7 +165,7 @@ const C = {
     faq: [
       ["¿Cómo me inscribo?", "Primero escríbeme por DM de Instagram (en el VIP, con un mensaje de voz en chino). Cuando confirmemos que el grupo es para ti, te envío el enlace de inscripción para elegir el plan y subir tu comprobante de pago."],
       ["¿Qué métodos de pago hay?", "PayPal (USD). Para personas en México también hay transferencia bancaria (SPEI); los datos de la cuenta te los envío por DM."],
-      ["¿Cómo renuevo?", "Igual que la primera vez: haces una nueva transferencia o pago y subes tu comprobante en la página de inscripción."],
+      ["¿Cómo renuevo?", "Igual que la primera vez: entras a la página de inscripción, eliges tu plan, haces el pago y subes tu comprobante. Si hay una promoción vigente, también se aplica a las renovaciones; si no, se paga el precio normal."],
       ["¿Qué pasa si no renuevo?", "Si no renuevas, te saco del grupo. Si quieres volver, haces un nuevo pago y subes tu comprobante otra vez."],
       ["¿Hay reembolsos?", "No. Una vez realizado el pago no hay reembolsos, ni siquiera si sales del grupo por inactividad."],
       ["¿Cuándo me agregan al grupo?", "Reviso tu comprobante y te agrego al grupo de WhatsApp con el número que pusiste en la inscripción. Ten en cuenta que los demás miembros podrán ver ese número."]
@@ -189,7 +189,7 @@ const C = {
     price: "訂閱費用", priceNote: "現在是優惠價格喔！",
     monthly: "月訂", bimonthly: "雙月", forTwo: "兩個月合計",
     priceSoon: "價格即將公布。",
-    promoNote: d => `優惠價至 ${d} 止（台灣時間）。僅限新學員，續訂一律以原價計算。`,
+    promoNote: d => `優惠價至 ${d} 止（台灣時間），續訂也適用。`,
     basic: {
       name: "中文健身房・零基礎群組", pos: "不需要任何中文基礎",
       tagline: "陪伴式學習，建立每天開口說中文的習慣與自信，一點一點奠定你的中文基礎。",
@@ -253,7 +253,7 @@ const C = {
     faq: [
       ["怎麼報名？", "請先用 Instagram 私訊我（VIP 群組請傳一則中文語音訊息）。確認這個群組適合你之後，我會把報名連結給你，讓你選方案並上傳付款憑證。"],
       ["有哪些付款方式？", "PayPal（美金）。墨西哥的朋友也可以用銀行轉帳（SPEI），帳號資料我會用私訊給你。"],
-      ["怎麼續訂？", "和第一次報名一樣：重新付款，並在報名頁上傳付款證明。"],
+      ["怎麼續訂？", "和第一次報名一樣：到報名頁選方案、付款，並上傳付款證明。如果目前有優惠價，續訂也適用；沒有優惠時就是原價。"],
       ["沒有續訂會怎麼樣？", "沒有續訂的話，我會直接把你移出群組。想再加入時，重新付款並上傳付款證明即可。"],
       ["可以退款嗎？", "不可以。付款後一律不退款，即使因為不活躍而離開群組也一樣。"],
       ["什麼時候會被加進群組？", "我核對你的付款憑證後，會用你報名時填的號碼把你加進 WhatsApp 群組。請注意，其他成員看得到這個號碼。"]

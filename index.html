@@ -389,8 +389,8 @@ function fmtYmd(s) {
 const moneyWas = o => o.promo ? `<span class="was">${esc(money(o.list != null ? o.list : o.listAmount, o.currency))}</span>` : "";
 function promoText(until) {
   const d = fmtYmd(until);
-  return L(`Promoción válida hasta el ${d} (hora de Taiwán). Solo para nuevas inscripciones: las renovaciones se pagan al precio normal.`,
-           `優惠價至 ${d} 止（台灣時間）。僅限新學員，續訂一律以原價計算。`);
+  return L(`Promoción válida hasta el ${d} (hora de Taiwán), también para renovaciones.`,
+           `優惠價至 ${d} 止（台灣時間），續訂也適用。`);
 }
 function onGroup() {
   const id = $("[name=group]", f1).value;
@@ -504,7 +504,7 @@ f1.addEventListener("submit", async e => {
   S.country = f1.elements.country.value; S.email = f1.elements.email.value.trim();
   const btn = $("#next"); btn.disabled = true; setT(btn, "Cargando…");
   try {
-    const info = await getPayInfo();
+    const info = await api("payinfo", { groupId: S.group.id, plan: S.plan, country: S.country });
     if (!info.ok) throw new Error(info.error || "api");
     S.info = info; S.shot = null;
     fillStep2();
@@ -514,18 +514,6 @@ f1.addEventListener("submit", async e => {
     showErr("#err1", L("No pudimos cargar la información de pago. Inténtalo de nuevo en un momento.", "無法載入付款資訊，請稍後再試。"));
   } finally { btn.disabled = false; setT(btn, "Siguiente"); }
 });
-
-/* 查價：用 POST 帶 Email（不放進網址），後端才能判斷是不是續訂（續訂不適用優惠價）。
-   舊版後端不認得 POST 查價（會回 ok:false），就退回舊的 GET 查價：沒有 Email，一律當新學員。 */
-async function getPayInfo() {
-  const params = { groupId: S.group.id, plan: S.plan, country: S.country };
-  if (DEMO) return api("payinfo", params);
-  try {
-    const r = await post({ action: "payinfo", ...params, email: S.email });
-    if (r && r.ok) return r;
-  } catch (e) { console.error(e); }
-  return api("payinfo", params);
-}
 
 /* ---------- 第 2 步：付款資訊 ---------- */
 function copyRow(text) { return `<div class="copyrow"><b>${esc(text)}</b><button type="button" class="btn sm" data-copy="${esc(text)}">${esc(L("Copiar", "複製"))}</button></div>`; }
@@ -537,12 +525,10 @@ function renderCurOpts(){
   $("#curOpts").innerHTML = i.options.map(o => `<label class="plan"><input type="radio" name="cur" value="${o.currency}" ${o.currency === S.cur ? "checked" : ""}>
     <span>${moneyWas(o)}<b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${CUR_NAME()[o.currency] || o.currency}</span></span></label>`).join("");
 }
-/* 付款頁的價格說明：續訂（原價）或優惠價截止日 */
+/* 付款頁的價格說明：優惠價截止日（新學員與續訂都適用） */
 function renderPriceNote() {
-  const i = S.info, n = $("#priceNote"); let t = "";
-  if (i.renewal) t = L("Como ya eres miembro de este grupo, esta es una renovación y se paga al precio normal (la promoción es solo para nuevas inscripciones).",
-                       "你已經是這個群組的成員，這是續訂，以原價計算（優惠價僅限新學員）。");
-  else if (i.options.some(o => o.promo) && i.promoUntil) t = promoText(i.promoUntil);
+  const i = S.info, n = $("#priceNote");
+  const t = (i.options.some(o => o.promo) && i.promoUntil) ? promoText(i.promoUntil) : "";
   n.hidden = !t; n.textContent = t;
 }
 

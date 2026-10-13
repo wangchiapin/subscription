@@ -499,7 +499,7 @@ const CUR_ORDER = ["TWD", "USD", "MXN"];
 const priceTableOf = g => (g.priceTable && Object.keys(g.priceTable).length) ? g.priceTable : (g.prices ? { [g.currency || "TWD"]: g.prices } : {});
 const priceOf = (g, plan, cur) => Number(priceTableOf(g)[cur]?.[plan]) || 0;
 /* 優惠價：群組有 promoTable（同價格表格式）與 promoUntil（yyyy-MM-dd）。台灣日期 ≤ 截止日、且比原價低才生效；
-   沒有截止日就不生效。和 Code.gs 的 activePromo_ 是同一套規則。續訂不適用優惠價（續訂一律用 priceOf）。 */
+   沒有截止日就不生效。和 Code.gs 的 activePromo_ 是同一套規則。新學員與續訂都適用。 */
 const promoTableOf = g => (g.promoTable && typeof g.promoTable === "object") ? g.promoTable : {};
 const twToday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 const promoActive = g => /^\d{4}-\d{2}-\d{2}$/.test(g.promoUntil || "") && twToday() <= g.promoUntil;
@@ -508,14 +508,14 @@ const promoOf = (g, plan, cur) => {
   const v = Number(promoTableOf(g)[cur]?.[plan]) || 0, list = priceOf(g, plan, cur);
   return v > 0 && v < list ? v : 0;
 };
-const effPriceOf = (g, plan, cur) => promoOf(g, plan, cur) || priceOf(g, plan, cur);   // 新學員現在實際要付的價格
+const effPriceOf = (g, plan, cur) => promoOf(g, plan, cur) || priceOf(g, plan, cur);   // 現在實際要付的價格（有優惠就是優惠價）
 const groupCurs = g => CUR_ORDER.filter(c => Object.values(priceTableOf(g)[c] || {}).some(v => Number(v) > 0));
 const primaryCur = g => { const cs = groupCurs(g); return cs.includes(g.currency) ? g.currency : (cs[0] || "TWD"); };
 const offeredPlans = g => { const k = Object.keys(PLANS).filter(p => groupCurs(g).some(c => priceOf(g, p, c) > 0)); return k.length ? k : Object.keys(PLANS); };
 /* 這個方案預設收哪個幣別、多少錢：先看主要幣別，沒有就找第一個有價格的幣別。
-   eff=true（新增成員）用現在實際價（有優惠就用優惠價）；預設（續訂、補款）一律用原價 */
-function defaultPay(g, plan, eff) {
-  const price = eff ? effPriceOf : priceOf;
+   一律用現在實際價（有優惠就用優惠價；新增成員、續訂、補款都一樣） */
+function defaultPay(g, plan) {
+  const price = effPriceOf;
   const pc = primaryCur(g);
   if (price(g, plan, pc) > 0) return { cur: pc, amt: price(g, plan, pc) };
   const c = groupCurs(g).find(c => price(g, plan, c) > 0);
@@ -597,7 +597,7 @@ function rowHTML(m, showGroup) {
   const sub = [m.nationality ? esc(m.nationality) : "", hasAge ? `${esc(m.age)} 歲` : ""].filter(Boolean).join("　");
   const btns = m.archived
     ? `<button class="btn sm" data-act="unarchive" data-id="${m.id}">還原</button><button class="btn sm primary" data-act="renew" data-id="${m.id}">續訂</button>`
-    : `${s.d < 0 ? `<button class="btn sm" data-act="archive" data-id="${m.id}">封存</button>` : ""}<button class="btn sm primary" data-act="renew" data-id="${m.id}">續訂</button>`;
+    : `${s.d < 0 ? `<button class="btn sm" data-act="archive" data-id="${m.id}">封存</button>` : ""}<button class="btn sm" data-act="msg" data-id="${m.id}">通知稿</button><button class="btn sm primary" data-act="renew" data-id="${m.id}">續訂</button>`;
   return `<div class="row ${s.tone}" data-row="${m.id}">
     <div class="c-st"><span class="badge ${s.cls}">${s.label}</span></div>
     <div class="c-nm"><b>${esc(m.name)}</b>${showGroup && g ? `<span class="grp">${esc(g.name)}</span>` : ""}<span class="sub">${sub || "&nbsp;"}</span></div>
@@ -778,7 +778,7 @@ function reqHTML(r) {
     <dl class="kv">
       <dt>WhatsApp</dt><dd>${waLink(r.whatsapp)}</dd>
       <dt>群組與方案</dt><dd>${esc(g ? g.name : (r.groupName || "（群組已刪除）"))}，${PLANS[r.plan]?.label || ""}方案</dd>
-      <dt>應付金額</dt><dd>${money(r.expectedAmount, r.expectedCurrency || "TWD")}${r.promoApplied ? `<span class="hint">（優惠價，原價 ${money(r.listAmount, r.expectedCurrency || "TWD")}）</span>` : r.isRenewal ? `<span class="hint">（續訂，原價）</span>` : ""}</dd>
+      <dt>應付金額</dt><dd>${money(r.expectedAmount, r.expectedCurrency || "TWD")}${r.promoApplied ? `<span class="hint">（優惠價，原價 ${money(r.listAmount, r.expectedCurrency || "TWD")}）</span>` : ""}</dd>
       <dt>${meth.ref}</dt><dd>${esc(r.ref)}${dup ? `<span class="warnTxt">這個編號已出現過，請小心重複</span>` : ""}</dd>
       <dt>付款時間</dt><dd>${esc((r.paidAt || "").replace("T", " "))}（學員填寫的當地時間）</dd>
       <dt>送出時間</dt><dd>${esc(fmtTs(r.createdAt))}</dd>
@@ -786,7 +786,7 @@ function reqHTML(r) {
       ${pn.agreed ? `<dt>學員勾選</dt><dd>已同意規則與不退款${pn.voice ? "、已傳語音訊息給 Ben" : ""}</dd>` : ""}
       ${pn.rest ? `<dt>備註</dt><dd>${esc(pn.rest).replace(/\n/g, "<br>")}</dd>` : ""}
     </dl>
-    ${pending && Number(r.quotedAmount) > 0 && Number(r.quotedAmount) !== Number(r.expectedAmount) ? `<p class="notice info" style="margin-bottom:8px"><span><b>價格不符</b>　學員付款頁看到的是 ${money(r.quotedAmount, r.expectedCurrency || "TWD")}，現在應付 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}（多半是優惠剛結束，或剛判定為續訂）。請核對他實際付了多少，要不要接受由你決定。</span></p>` : ""}
+    ${pending && Number(r.quotedAmount) > 0 && Number(r.quotedAmount) !== Number(r.expectedAmount) ? `<p class="notice info" style="margin-bottom:8px"><span><b>價格不符</b>　學員付款頁看到的是 ${money(r.quotedAmount, r.expectedCurrency || "TWD")}，現在應付 ${money(r.expectedAmount, r.expectedCurrency || "TWD")}（多半是優惠剛結束）。請核對他實際付了多少，要不要接受由你決定。</span></p>` : ""}
     ${pending && match ? `<p class="notice info">信箱和現有成員「${esc(match.name)}」相同，可能是續訂。</p>` : ""}
     ${(() => { const hs = pending ? state.groups.filter(x => x.id !== r.groupId).map(x => levelHint(r, x)).filter(Boolean) : []; return hs.length ? `<p class="notice info" style="margin-top:8px"><span><b>程度不符時</b>　${hs.map(h => esc(h.text)).join("；")}</span></p>` : ""; })()}
     <div class="acts" style="margin-top:10px">
@@ -898,7 +898,7 @@ function openGroupForm(id) {
         ${Object.entries(PLANS).map(([k, p]) => `<span class="pl">${p.label}</span>${CUR_ORDER.map(c => `<input name="q_${k}_${c}" type="number" inputmode="decimal" min="0" step="any" aria-label="優惠價 ${p.label}（${CUR[c].name}）" value="${Number(promoTableOf(g)[c]?.[k]) || ""}">`).join("")}`).join("")}
       </div></div>
     <label><span class="lbl">優惠截止日（有填優惠價就必填；台灣時間當天 23:59 結束，之後自動恢復原價）</span><input type="date" name="promoUntil" value="${esc(g.promoUntil || "")}"></label>
-    <p class="hint">優惠價只給新學員；同一個 Email、同一個群組已經有成員紀錄的（含已封存、已過期）算續訂，一律收原價。群組介紹頁和報名頁會自動顯示原價、優惠價和截止日。</p>
+    <p class="hint">優惠期間內，新學員和續訂都適用優惠價；截止日一過自動恢復原價。群組介紹頁和報名頁會自動顯示原價、優惠價和截止日。</p>
     <label><span class="lbl">報名狀態（公開、即將額滿：學員可在報名頁選這個群組；額滿、不公開：報名頁不出現。介紹頁同步顯示）</span>
       <select name="status">${Object.entries(GSTAT).map(([k, v]) => `<option value="${k}" ${groupStatus(g) === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
     <label><span class="lbl">公開頁說明（選填，學員會看到）</span><textarea name="publicDesc" rows="2">${esc(g.publicDesc)}</textarea></label>
@@ -974,7 +974,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     </div>
     <label><span class="lbl">到期日</span><input name="expiresAt" type="date" required value="${esc(m.expiresAt)}"></label>
     <p class="hint" id="exphint"></p>
-    ${editing ? "" : (() => { const d = defaultPay(g, m.plan, true); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
+    ${editing ? "" : (() => { const d = defaultPay(g, m.plan); return payBlock(req ? (req.expectedCurrency || d.cur) : d.cur, req ? req.expectedAmount : d.amt); })()}
     <label><span class="lbl">備註</span><textarea name="note" rows="2">${esc(m.note)}</textarea></label>
     <div class="foot"><button type="button" class="btn" data-act="close">取消</button><button class="btn primary">${editing ? "儲存變更" : "新增成員"}</button></div>
   </form>`);
@@ -987,7 +987,7 @@ function openMemberForm(groupId, memberId, opts = {}) {
     const act = v("activatedAt"), months = opts.months || PLANS[v("plan")].months;
     if (!editing && !expDirty && act) f.elements.expiresAt.value = addMonths(act, months, dayOf(act));
     if (!editing && who === "plan" && !f.elements.amount.dataset.touched) {
-      const d = defaultPay(g, v("plan"), true); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
+      const d = defaultPay(g, v("plan")); f.elements.amount.value = d.amt; f.elements.currency.value = d.cur; delete f.elements.rate.dataset.touched;
     }
     const exp = v("expiresAt"); let hint = "";
     if (act && exp) {
@@ -1049,6 +1049,73 @@ async function unarchiveMember(id, undo) {
   try { await store.put("members", { ...rest, archived: false }); logActivity(m.groupId, m, "unarchived", ""); toast(undo ? "已復原" : `已還原「${m.name}」`); } catch (e) { console.error(e); toast("還原失敗"); }
 }
 
+/* ---- 續訂通知稿（西班牙文＋簡體中文，一鍵複製）----
+   收到到期提醒信、要聯絡學員時用。群組目前有優惠價就寫優惠價（附原價）和截止日，沒有就只寫價格；續訂也適用優惠價。 */
+const SIGNUP_URL = "https://wangchiapin.github.io/subscription/";
+const ES_MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const ymdParts = v => { const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? { y: m[1], m: Number(m[2]), d: Number(m[3]) } : null; };
+const esDate = v => { const p = ymdParts(v); return p ? `${p.d} de ${ES_MESES[p.m - 1]} de ${p.y}` : ""; };
+const zhDate = v => { const p = ymdParts(v); return p ? `${p.y}年${p.m}月${p.d}日` : ""; };
+const MSG_PLAN = { monthly: ["Mensual", "每月"], bimonthly: ["Bimestral (2 meses)", "每两个月"], quarterly: ["Trimestral (3 meses)", "每季度"] };
+const msgMoney = (n, c) => c === "MXN" ? `$${n} MXN` : c === "USD" ? `US$ ${n}` : `NT$ ${n}`;
+function renewMsgs(m, g) {
+  const all = groupCurs(g), curs = all.filter(c => c !== "TWD").length ? all.filter(c => c !== "TWD") : all;
+  let hasPromo = false;
+  const lines = offeredPlans(g).map(k => {
+    const cs = curs.filter(c => priceOf(g, k, c) > 0); if (!cs.length) return null;
+    const pc = cs.filter(c => promoOf(g, k, c) > 0); if (pc.length) hasPromo = true;
+    const now = cs.map(c => msgMoney(effPriceOf(g, k, c), c)).join(" / "), was = pc.map(c => msgMoney(priceOf(g, k, c), c)).join(" / ");
+    return { k, now, was };
+  }).filter(Boolean);
+  const d = statusOf(m).d, ed = m.expiresAt, until = g.promoUntil;
+  const exEs = d > 0 ? `vence el ${esDate(ed)}` : d === 0 ? `vence hoy (${esDate(ed)})` : `venció el ${esDate(ed)}`;
+  const exZh = d > 0 ? `将于${zhDate(ed)}到期` : d === 0 ? `今天（${zhDate(ed)}）到期` : `已于${zhDate(ed)}到期`;
+  const es = [
+    `Hola ${m.name} 👋`, "",
+    `Tu suscripción a "${g.name}" ${exEs}.`, "",
+    lines.length
+      ? (hasPromo ? `¿Quieres seguir? Hay una promoción vigente hasta el ${esDate(until)} (hora de Taiwán), también para renovaciones:` : "¿Quieres seguir? Estos son los planes y precios:")
+      : "¿Quieres seguir con nosotros?",
+    ...lines.map(l => `• ${MSG_PLAN[l.k][0]}: ${l.now}${l.was ? ` (precio normal: ${l.was})` : ""}`),
+    ...(lines.length ? [""] : []),
+    "Para renovar, entra aquí, elige tu plan, haz el pago y sube tu comprobante:", SIGNUP_URL,
+    "Si prefieres transferencia en pesos mexicanos, avísame y te paso los datos de la cuenta.",
+    ...(d < 0 ? ["Cuando verifique tu pago, te vuelvo a agregar al grupo."] : []), "",
+    "¡Gracias por practicar conmigo! 🙌"
+  ].join("\n");
+  const zh = [
+    `${m.name} 你好 👋`, "",
+    `你在「${g.name}」的订阅${exZh}。`, "",
+    lines.length
+      ? (hasPromo ? `想继续的话，目前有优惠价，到 ${zhDate(until)} 为止（台湾时间），续订也适用：` : "想继续的话，方案和价格如下：")
+      : "想继续一起练习吗？",
+    ...lines.map(l => `• ${MSG_PLAN[l.k][1]}：${l.now}${l.was ? `（原价：${l.was}）` : ""}`),
+    ...(lines.length ? [""] : []),
+    "续订方式：打开下面的链接，选择方案、付款，并上传付款凭证：", SIGNUP_URL,
+    "如果想用墨西哥比索转账，请告诉我，我再把账户资料发给你。",
+    ...(d < 0 ? ["我确认付款后，会再把你加回群组。"] : []), "",
+    "谢谢你和我一起练习！🙌"
+  ].join("\n");
+  return { es, zh, hasPromo };
+}
+function openRenewMsg(id) {
+  const m = memberById(id), g = m && groupById(m.groupId); if (!m || !g) return;
+  const r = renewMsgs(m, g);
+  const blk = (label, name, text) => `<div><div class="acts" style="justify-content:space-between;align-items:center;margin-bottom:6px"><span class="lbl" style="margin:0">${label}</span><button type="button" class="btn sm primary" data-act="copy-msg" data-for="${name}">複製</button></div>
+      <textarea id="${name}" rows="13" style="width:100%">${esc(text)}</textarea></div>`;
+  openDlg(`續訂通知稿：${m.name}`, `<div class="form">
+    <p class="hint">${r.hasPromo ? `目前「${esc(g.name)}」有優惠價（到 ${esc(g.promoUntil)}），草稿已寫入優惠價和原價，續訂也適用。` : `目前「${esc(g.name)}」沒有生效中的優惠價，草稿只寫一般價格。`}　可以直接改字再複製。</p>
+    ${blk("西班牙文", "msgEs", r.es)}
+    ${blk("簡體中文", "msgZh", r.zh)}
+    <div class="foot"><button type="button" class="btn" data-act="close">關閉</button></div></div>`);
+}
+async function copyMsg(el) {
+  const ta = document.getElementById(el.dataset.for); if (!ta) return;
+  try { await navigator.clipboard.writeText(ta.value); toast("已複製"); return; } catch (e) { /* 改用選取後複製 */ }
+  ta.focus(); ta.select();
+  try { document.execCommand("copy") ? toast("已複製") : toast("請手動全選複製"); } catch (e) { toast("請手動全選複製"); }
+}
+
 /* ---- 續訂 ---- */
 function openRenew(id, opts = {}) {
   const m = memberById(id), g = groupById(m.groupId), req = opts.request || null;
@@ -1084,7 +1151,7 @@ function openRenew(id, opts = {}) {
     }
     syncPay(f);
   };
-  watchPay(f, cur => priceOf(g, v("plan"), cur));
+  watchPay(f, cur => effPriceOf(g, v("plan"), cur));
   if (req) f.elements.amount.dataset.touched = "1";
   f.addEventListener("input", e => recalc(e.target.name));
   recalc();
@@ -1281,6 +1348,8 @@ const actions = {
   "archive": archiveMember,
   "unarchive": id => unarchiveMember(id, false),
   "renew": openRenew,
+  "msg": id => openRenewMsg(id),
+  "copy-msg": (id, el) => copyMsg(el),
   "history": openHistory,
   "settings": openSettings,
   "export": exportJSON,
