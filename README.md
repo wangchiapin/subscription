@@ -1,9 +1,51 @@
 # 訂閱群組簿 Suscripción
 
-> 付費訂閱群組管理：群組、成員、費用、到期日
+付費訂閱群組的報名與管理：學員自己報名、付款、上傳付款證明；老師在後台審核、記錄到期日、處理續訂。
 
-- **網址：** https://wangchiapin.github.io/subscription/（管理頁：subscription/form/）
-- **Firebase 專案：** subscription-48d3c
-- **登入方式：** Google 登入
+給 Claude：改這個工具前先讀這份。Ben 的規則：先討論、測好、問過才推（他說「推」才推）；用白話繁體中文說明。
+
+- **Firebase 專案：** subscription-48d3c（與入口網站 `cadadiaunosminutos-share-zone` 共用）
 - **狀態：** 使用中
-- **備註：** 與入口網站 `cadadiaunosminutos-share-zone` 共用同一個 Firebase 專案。
+
+## 三個頁面
+
+| 頁面 | 網址 | 給誰 | 檔案 |
+|---|---|---|---|
+| 群組介紹頁（Gimnasio de Chino，西／中雙語） | https://wangchiapin.github.io/subscription/groups/ | 學員 | `groups/index.html` |
+| 報名頁（Suscripción） | https://wangchiapin.github.io/subscription/ | 學員 | `index.html` |
+| 後台（訂閱群組簿） | https://wangchiapin.github.io/subscription/form/ | 只有老師 | `form/index.html` |
+
+三個頁面都是單一 HTML，GitHub Pages 直接讀，不用編譯。
+
+## 報名流程（學員）
+
+1. 填基本資料（姓名、Email 要輸入兩次確認）。
+2. 選群組（目前有 VIP 與基礎兩種）和方案（月訂／雙月訂）、選幣別（美金或墨西哥披索）。
+3. 付款：
+   - **PayPal**（美金）：頁面顯示 PayPal.me 連結，付完填交易編號。
+   - **墨西哥銀行轉帳（SPEI）**：付款資料由後端在付款步驟才回傳，不寫在網頁裡。
+4. 上傳付款證明（截圖）後送出，等老師審核。
+
+## 價格與優惠
+
+- 原價寫在 `groups/index.html` 的 `PRICES`（VIP）和 `PRICES_BASIC`；實際顯示以報名系統回傳為準。
+- **優惠價**：只有在優惠生效時，後端才會回傳 `promo`（截止日以台灣日期判斷）。優惠期間頁面顯示優惠價並劃掉原價，註明截止日。
+- **2026-10-13 起優惠也適用於續訂。**
+- 頁面介紹有 FAQ（付款方式、怎麼續訂、沒續訂會怎樣：直接移出群組，想回來重新付款即可）。
+
+## 後台功能（只限授權 Google 帳號）
+
+- **登入限制**：只有 `form/index.html` 裡 `ALLOWED_EMAILS` 列的信箱能進；真正的防線是 Firestore 安全規則。
+- **總覽**：成員依到期狀態分類（今日到期、明日到期、7 天內、已過期、有效、封存）；到期日當天不算有效，「最後有效日」是前一天。
+- **群組管理**：新增、修改、刪除群組與費用；刪除群組會連同成員與付費記錄一起刪。
+- **成員管理**：手動新增或修改成員、啟用日與到期日、封存、刪除。
+- **審核報名**：看付款證明截圖，確認後自動建立成員並算好到期日；若學員實際付款的方案和選的群組不同，會提示改放到對的群組（`levelHint`）。
+- **續訂**：從現有到期日接續（日期不會越算越早）；已封存的成員續訂後恢復。後台有**續訂／到期提醒訊息草稿**（中文簡繁、西文），群組有優惠時寫優惠價和截止日。
+- **活動紀錄**與**教學活動記錄**：誰在何時新增、續訂、刪除；教學活動可獨立記錄與刪除。
+- 匯率預設：1 美金＝32 台幣、1 披索＝1.7 台幣（可在設定改）。
+
+## 資料（Firestore）
+
+`sub_groups`（群組）、`sub_members`（成員）、`sub_settings/main`（設定）、`sub_requests`（報名申請）、`sub_activity`（活動紀錄）、`sub_events`（教學活動）。付款截圖存在 Firebase Storage。
+
+沒有填 Firebase 設定時，後台會用「本機示範模式」（資料只存在瀏覽器，不用登入），報名頁也有示範資料。
