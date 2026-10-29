@@ -46,6 +46,8 @@
 
 ## 資料（Firestore）
 
-`sub_groups`（群組）、`sub_members`（成員）、`sub_settings/main`（設定）、`sub_requests`（報名申請）、`sub_activity`（活動紀錄）、`sub_events`（教學活動）。付款截圖存在 Firebase Storage。
+`sub_groups`（群組）、`sub_members`（成員）、`sub_settings/main`（設定）、`sub_requests`（報名申請）、`sub_activity`（活動紀錄）、`sub_events`（教學活動）。另外有 `portalStatus`（`group-vip`、`group-basic`，欄位 `state`）：後台設定群組開放狀態時寫入，群組介紹頁讀它來決定報名按鈕，公開可讀、只有管理員能寫，改規則時別漏掉。
+
+報名頁與介紹頁是透過一個 Google Apps Script 後端送出報名、取價格與優惠；付款截圖由報名頁壓縮成 JPEG 後送到這個後端，後台審核時顯示後端回傳的截圖連結（`screenshotUrl`）。截圖實際放在哪裡，從這個 repo 看不出來（程式裡沒有用到 Firebase Storage）。
 
 沒有填 Firebase 設定時，後台會用「本機示範模式」（資料只存在瀏覽器，不用登入），報名頁也有示範資料。
