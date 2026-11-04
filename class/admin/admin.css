@@ -89,3 +89,17 @@ dialog::backdrop{background:rgba(35,34,31,.5)}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:99;max-width:calc(100vw - 24px);opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
 @media(prefers-reduced-motion:reduce){#toast{transition:none}}
+
+/* 手機：欄位不准撐破視窗（日期、時間欄位在 iOS 有固定最小寬度） */
+dialog{overflow-x:hidden}
+.grid2>*,.grid3>*,.row3>*{min-width:0}
+.form input,.form select,.form textarea{min-width:0;max-width:100%}
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;display:block}
+.row3 select{padding-right:4px}
+@media(max-width:520px){
+  .row3{grid-template-columns:1.3fr 1fr 1fr 36px;gap:6px}
+  .row3 button{padding:0;min-width:0}
+  .row3.mat{display:flex;flex-wrap:wrap}
+  .row3.mat input{flex:1 1 100%}
+  .row3.mat button{margin-left:auto}
+}
