@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="../../icon.png">
+<title>我的报名</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../common.css?v=1">
+</head>
+<body>
+<div class="wrap">
+  <div class="langsw" id="langsw" role="group" aria-label="Idioma / 语言 / 語言"></div>
+  <div id="demo" class="demo" hidden data-i="demo"></div>
+  <h1 data-i="myTitle"></h1>
+  <div id="loading" class="card" data-i="loading"></div>
+  <div id="err" class="err-box" hidden></div>
+  <div id="main" hidden></div>
+  <p class="foot" data-i="foot"></p>
+</div>
+<script src="../common.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+  const { t, $, esc, pick, money, fmtYmd, slotsHtml, tzOptions, lsPut } = CLS;
+  const S = { data: null, tz: CLS.defaultTz() };
+  const token = new URLSearchParams(location.search).get("t") || "";
+  const STATUS_TONE = { pending: "warn", paid: "good", waitlist: "warn", refund_pending: "bad", refunded: "", cancelled: "" };
+
+  function render() {
+    const d = S.data; if (!d) return;
+    const su = d.signup, c = d.course || {}, st = su.status, acc = d.access;
+    const contactEmail = (d.contact && d.contact.email) || CLS.DEFAULT_EMAIL;
+    const facts = [[t("myRef"), esc(su.ref)], [t("myCourse"), esc(pick(c.title))]];
+    if (su.amount) facts.push([t("myPaid"), esc(money(su.amount, su.currency))]);
+    if (CLS.isYmd(su.desiredStart)) facts.push([t("myStart"), esc(fmtYmd(su.desiredStart))]);
+    if (CLS.isYmd(c.startDate)) facts.push([t("fStart"), esc(fmtYmd(c.startDate))]);
+    if ((c.slots || []).length) facts.push([t("fTime"), slotsHtml(c.slots, S.tz, d.today)]);
+    let html = `<article class="card"><p style="margin:0 0 6px">${esc(t("hello", { name: su.name }))}</p>
+      <div class="tags"><span class="tag ${STATUS_TONE[st] || ""}">${esc(t("my_" + st))}</span></div>
+      <p>${esc(t("msg_" + st))}</p>
+      <dl class="facts">${facts.map(f => `<dt>${esc(f[0])}</dt><dd>${f[1]}</dd>`).join("")}</dl>
+      ${(c.slots || []).length ? `<div class="tzbar"><span>${esc(t("tzLabel"))}</span><select id="tz">${tzOptions(S.tz)}</select></div>` : ""}</article>`;
+    if (st === "paid" && acc) {
+      html += `<article class="card"><h2>${esc(t("zoom"))}</h2>`
+        + (acc.zoomUrl ? `<p><a class="btn primary" href="${esc(acc.zoomUrl)}" target="_blank" rel="noopener">${esc(t("openLink"))}</a></p>` : `<p class="hint">${esc(t("noZoom"))}</p>`)
+        + (acc.zoomNote ? `<div class="text">${esc(acc.zoomNote)}</div>` : "") + `</article>`
+        + `<article class="card"><h2>${esc(t("materials"))}</h2>`
+        + ((acc.materials || []).length ? acc.materials.map(m => `<div class="mat"><div><b>${esc(m.title)}</b>${m.note ? `<br><small class="hint">${esc(m.note)}</small>` : ""}</div>${m.url ? `<a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener">${esc(t("openLink"))}</a>` : ""}</div>`).join("") : `<p class="hint">${esc(t("noMat"))}</p>`)
+        + `</article>`;
+    }
+    html += `<p class="hint">${esc(t("contactMe"))} <a href="mailto:${esc(contactEmail)}">${esc(contactEmail)}</a></p>`;
+    $("#main").innerHTML = html;
+  }
+  document.addEventListener("change", e => { if (e.target.id === "tz") { S.tz = e.target.value; lsPut("clsTz", S.tz); render(); } });
+
+  function showErr(key) { const b = $("#err"); b.hidden = false; b.dataset.k = key; b.textContent = t(key); }
+  async function load() {
+    if (CLS.DEMO) $("#demo").hidden = false;
+    $("#err").hidden = true;
+    try {
+      const r = await CLS.apiGet("my", { t: token });
+      $("#loading").hidden = true;
+      if (!r.ok) { showErr(r.error === "server" ? "myLoadErr" : "myNotFound"); return; }
+      S.data = r; $("#main").hidden = false; render();
+    } catch (e) {
+      console.error(e); $("#loading").hidden = true;
+      showErr("myLoadErr");
+    }
+  }
+  function applyLang() {
+    CLS.setLang(CLS.getLang()); CLS.applyStatic(document);
+    document.title = t("myTitle");
+    if (!$("#err").hidden) $("#err").textContent = t($("#err").dataset.k);
+    render();
+  }
+  CLS.bindLangSwitch($("#langsw"), applyLang);
+  CLS.setLang(CLS.getLang()); CLS.applyStatic(document); document.title = t("myTitle");
+  load();
+})();
+</script>
+</body>
+</html>

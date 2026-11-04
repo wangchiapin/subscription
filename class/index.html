@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/png" href="../icon.png">
+<link rel="apple-touch-icon" href="../icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="团班报名 · 團班報名 · Clases grupales">
+<meta property="og:url" content="https://wangchiapin.github.io/subscription/class/">
+<title>团班报名</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=1">
+</head>
+<body>
+<div class="wrap">
+  <div class="langsw" id="langsw" role="group" aria-label="Idioma / 语言 / 語言"></div>
+  <div id="demo" class="demo" hidden data-i="demo"></div>
+
+  <!-- 班級列表 -->
+  <section id="vList">
+    <h1 data-i="title"></h1>
+    <p class="lead" data-i="lead"></p>
+    <div id="loading" class="card" data-i="loading"></div>
+    <div id="loaderr" class="err-box" hidden></div>
+    <div id="courses"></div>
+  </section>
+
+  <!-- 班級詳情 -->
+  <section id="vDetail" hidden>
+    <button type="button" class="back" id="backList" data-i="backList"></button>
+    <div id="detail"></div>
+  </section>
+
+  <!-- 報名流程 -->
+  <section id="vFlow" hidden>
+    <button type="button" class="back" id="backDetail">← <span id="flowCourse"></span></button>
+    <ol class="steps" id="steps">
+      <li class="on" id="st1"><span>1</span><i data-i="stepData"></i></li>
+      <li id="st2"><span>2</span><i data-i="stepPay"></i></li>
+    </ol>
+
+    <form id="f1" class="card form" novalidate autocomplete="on">
+      <label><span class="lbl" data-i="name"></span>
+        <input type="text" name="name" maxlength="80" autocomplete="name">
+        <p class="fe" data-for="name"></p></label>
+
+      <label><span class="lbl" data-i="country"></span>
+        <select name="country"></select>
+        <p class="fe" data-for="country"></p></label>
+      <label id="otherBox" hidden><span class="lbl" data-i="otherCountryLbl"></span>
+        <input type="text" name="countryOther" maxlength="40">
+        <p class="fe" data-for="countryOther"></p></label>
+
+      <div class="grid2">
+        <label><span class="lbl" data-i="email"></span>
+          <input type="email" name="email" inputmode="email" autocomplete="email" maxlength="120">
+          <p class="fe" data-for="email"></p></label>
+        <label><span class="lbl" data-i="email2"></span>
+          <input type="email" name="email2" inputmode="email" autocomplete="off" maxlength="120">
+          <p class="fe" data-for="email2"></p></label>
+      </div>
+
+      <label><span class="lbl" data-i="wa"></span>
+        <input type="tel" name="whatsapp" inputmode="tel" autocomplete="tel" maxlength="25" placeholder="+52 55 1234 5678">
+        <p class="hint" data-i="waHint"></p>
+        <p class="fe" data-for="whatsapp"></p></label>
+
+      <label><span class="lbl" data-i="level"></span>
+        <select name="studentLevel"></select>
+        <p class="fe" data-for="studentLevel"></p></label>
+
+      <label><span class="lbl" data-i="startWish"></span>
+        <input type="date" name="desiredStart">
+        <p class="hint" data-i="startHint"></p></label>
+
+      <label><span class="lbl" data-i="note"></span>
+        <textarea name="note" maxlength="500"></textarea></label>
+
+      <div><label class="chk"><input type="checkbox" name="agree"><span data-i="consent"></span></label>
+        <p class="fe" data-for="agree"></p></div>
+
+      <div class="hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+      <div class="actions"><button type="submit" class="btn primary" id="next"></button></div>
+      <div id="err1" class="err-box" hidden></div>
+    </form>
+
+    <form id="f2" class="form" novalidate hidden>
+      <div class="card">
+        <h2 data-i="summary"></h2>
+        <dl class="sum" id="sum"></dl>
+        <p class="promo" id="promoNote" hidden></p>
+      </div>
+      <div class="card form">
+        <div id="curBox" hidden>
+          <span class="lbl" data-i="payCurrency"></span>
+          <div class="opts" id="curOpts"></div>
+        </div>
+        <div class="box" id="payBox"></div>
+
+        <label><span class="lbl" id="refLabel"></span>
+          <input type="text" name="ref" maxlength="80" autocomplete="off">
+          <p class="hint" id="refHint"></p></label>
+
+        <label><span class="lbl" data-i="paidAt"></span>
+          <input type="datetime-local" name="paidAt"></label>
+
+        <div>
+          <span class="lbl" data-i="shot"></span>
+          <div class="shot">
+            <label class="btn sm" for="shot" id="shotBtn" tabindex="0"></label>
+            <input type="file" id="shot" accept="image/*">
+            <img id="prev" alt="" hidden>
+            <button type="button" class="btn sm" id="shotDel" hidden data-i="remove"></button>
+          </div>
+          <p class="fe" id="shotErr"></p>
+        </div>
+
+        <label class="chk"><input type="checkbox" id="ok"><span data-i="confirmPaid"></span></label>
+        <p class="hint" id="hint2" data-i="fillAll"></p>
+        <div class="actions">
+          <button type="button" class="btn" id="back" data-i="back"></button>
+          <button type="submit" class="btn primary" id="submit" disabled></button>
+        </div>
+        <div id="err2" class="err-box" hidden></div>
+      </div>
+    </form>
+  </section>
+
+  <!-- 完成 -->
+  <section id="vDone" class="card done" hidden>
+    <div class="ok" aria-hidden="true">✓</div>
+    <h2 id="doneTitle"></h2>
+    <p id="doneText"></p>
+    <p class="hint"><span data-i="doneRef"></span> <b id="doneRef"></b></p>
+    <p class="hint" id="doneMail"></p>
+    <div class="box" style="margin-top:14px">
+      <p class="hint" data-i="doneLink" style="text-align:left"></p>
+      <p class="mylink"><a id="doneLinkA" href="#"></a></p>
+      <div class="actions"><button type="button" class="btn sm" id="doneCopy"></button><a class="btn sm primary" id="doneOpen" href="#" data-i="openMy"></a></div>
+    </div>
+  </section>
+
+  <p class="foot" data-i="foot"></p>
+</div>
+
+<script src="common.js?v=1"></script>
+<script>
+(function () {
+  "use strict";
+  const { t, $, $$, esc, pick, money, fmtYmd, daysBetween, slotsHtml, tzOptions, countryName, COUNTRIES, apiGet, apiPost, lsGet, lsPut } = CLS;
+  const S = { courses: [], today: CLS.twToday(), contact: {}, course: null, tz: CLS.defaultTz(), info: null, cur: "", shot: null, sending: false, waitlist: false, country: "", doneWait: false };
+  const f1 = $("#f1"), f2 = $("#f2");
+  const contactEmail = () => (S.info && S.info.contact && S.info.contact.email) || S.contact.email || CLS.DEFAULT_EMAIL;
+  const contactIg = () => (S.info && S.info.contact && S.info.contact.ig) || S.contact.ig || CLS.DEFAULT_IG;
+
+  function show(v) {
+    ["vList", "vDetail", "vFlow", "vDone"].forEach(id => { $("#" + id).hidden = id !== v; });
+    window.scrollTo({ top: 0 });
+  }
+
+  /* ---------- 班級卡片 ---------- */
+  function stateTag(c) {
+    const m = c.state === "open" ? (c.status === "confirmed" ? ["st_confirmed", "good"] : ["st_open", "good"])
+      : c.state === "waitlist" ? ["st_waitlist", "warn"] : c.state === "full" ? ["st_full", "bad"] : ["st_deadline", "bad"];
+    return `<span class="tag ${m[1]}">${esc(t(m[0]))}</span>`;
+  }
+  const levelTag = c => (CLS.K["lv_" + c.level] ? `<span class="tag">${esc(t("lv_" + c.level))}</span>` : "");
+  function priceHtml(c) {
+    const o = (c.options || []);
+    if (!o.length) return "";
+    return `<span class="price">${o.map(x => (x.promo ? `<span class="was">${esc(money(x.list, x.currency))}</span>` : "") + esc(money(x.amount, x.currency))).join(" ／ ")} <small>${esc(t("unit_" + (c.priceUnit || "month")))}</small></span>`;
+  }
+  function promoHtml(c) {
+    const o = (c.options || []).filter(x => x.promo)[0];
+    if (!o || !CLS.isYmd(c.promoUntil)) return "";
+    const n = daysBetween(S.today, c.promoUntil);
+    return `<p class="promo">${esc(n <= 0 ? t("promoLast") : t("promoLine", { d: fmtYmd(c.promoUntil), n: n }))}</p>`;
+  }
+  function seatsHtml(c) {
+    const cap = Number(c.capacity) || 0, taken = Number(c.taken) || 0;
+    if (!cap) return esc(t("noLimit"));
+    const bits = [t("seatsInfo", { taken: taken, cap: cap })];
+    if (taken < cap) bits.push(t("seatsLeft", { n: cap - taken }));
+    if (c.status === "open" && Number(c.minStudents) > taken) bits.push(t("minOpen", { n: c.minStudents }));
+    return esc(bits.join(" · "));
+  }
+  function facts(c, full) {
+    const rows = [];
+    if (CLS.isYmd(c.startDate)) rows.push([t("fStart"), esc(fmtYmd(c.startDate))]);
+    if ((c.slots || []).length) rows.push([t("fTime"), slotsHtml(c.slots, S.tz, S.today)]);
+    if (c.joinMode && CLS.K["join_" + c.joinMode]) rows.push([t("fJoin"), esc(t("join_" + c.joinMode))]);
+    rows.push([t("fSeats"), seatsHtml(c)]);
+    if ((c.options || []).length) rows.push([t("fPrice"), priceHtml(c)]);
+    if (full && CLS.isYmd(c.signupDeadline)) rows.push([t("fDeadline"), esc(fmtYmd(c.signupDeadline))]);
+    return `<dl class="facts">${rows.map(r => `<dt>${esc(r[0])}</dt><dd>${r[1]}</dd>`).join("")}</dl>`;
+  }
+  function tzBar(id) {
+    return `<div class="tzbar"><span>${esc(t("tzLabel"))}</span><select id="${id}" class="tzsel" aria-label="${esc(t("tzLabel"))}">${tzOptions(S.tz)}</select></div>`;
+  }
+  function cover(c) { return c.coverUrl ? `<img class="cover" src="${esc(c.coverUrl)}" alt="" loading="lazy">` : ""; }
+
+  function renderList() {
+    const box = $("#courses");
+    if (!S.courses.length) { box.innerHTML = `<div class="card">${esc(t("noCourses"))}</div>`; return; }
+    box.innerHTML = tzBar("tzList") + S.courses.map(c => `<article class="card click" data-open="${esc(c.id)}" tabindex="0" role="link">
+      ${cover(c)}<div class="tags">${stateTag(c)}${levelTag(c)}</div>
+      <h2>${esc(pick(c.title))}</h2>${facts(c, false)}${promoHtml(c)}
+      <p style="margin:12px 0 0"><span class="btn sm primary">${esc(t("details"))}</span></p></article>`).join("");
+  }
+  function textSec(label, obj) {
+    const s = pick(obj); return s ? `<div class="sec"><h3>${esc(label)}</h3><div class="text">${esc(s)}</div></div>` : "";
+  }
+  function renderDetail() {
+    const c = S.course; if (!c) return;
+    const can = c.state === "open" || c.state === "waitlist";
+    $("#detail").innerHTML = `<article class="card">${cover(c)}<div class="tags">${stateTag(c)}${levelTag(c)}</div>
+      <h1 style="font-size:22px">${esc(pick(c.title))}</h1>${tzBar("tz")}${facts(c, true)}${promoHtml(c)}
+      ${textSec(t("secIntro"), c.intro)}${textSec(t("secRules"), c.rules)}${textSec(t("secRefund"), c.refund)}${textSec(t("secNote"), c.note)}
+      ${can ? `<p style="margin:18px 0 0"><button type="button" class="btn primary block" id="goSignup">${esc(t(c.state === "waitlist" ? "waitBtn" : "signupBtn"))}</button></p>` : ""}</article>`;
+  }
+
+  /* ---------- 路由：網址 #c=班級編號 ---------- */
+  function route() {
+    const m = location.hash.match(/^#c=([\w-]+)$/), c = m && S.courses.filter(x => x.id === m[1])[0];
+    if (c) { S.course = c; renderDetail(); show("vDetail"); } else { S.course = null; renderList(); show("vList"); }
+  }
+  document.addEventListener("click", e => {
+    const card = e.target.closest("[data-open]"); if (card) { location.hash = "c=" + card.dataset.open; return; }
+    if (e.target.id === "goSignup") startFlow();
+  });
+  document.addEventListener("keydown", e => { const card = e.target.closest && e.target.closest("[data-open]"); if (card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); location.hash = "c=" + card.dataset.open; } });
+  document.addEventListener("change", e => {
+    if (!e.target.classList || !e.target.classList.contains("tzsel")) return;
+    S.tz = e.target.value; lsPut("clsTz", S.tz);
+    S.course ? renderDetail() : renderList();
+  });
+  $("#backList").addEventListener("click", () => { location.hash = ""; });
+  $("#backDetail").addEventListener("click", () => { route(); });
+  window.addEventListener("hashchange", route);
+
+  /* ---------- 載入 ---------- */
+  async function init() {
+    if (CLS.DEMO) $("#demo").hidden = false;
+    try {
+      const r = await apiGet("courses");
+      if (!r.ok) throw new Error("api");
+      S.courses = r.courses || []; S.today = r.today || S.today; S.contact = r.contact || {};
+    } catch (e) {
+      console.error(e); $("#loading").hidden = true;
+      const b = $("#loaderr"); b.hidden = false; b.textContent = t("loadErr"); return;
+    }
+    $("#loading").hidden = true;
+    route();
+  }
+
+  /* ---------- 第 1 步 ---------- */
+  function buildSelects() {
+    const cs = f1.elements.country, cv = cs.value;
+    cs.innerHTML = `<option value="">${esc(t("pickCountry"))}</option>` + COUNTRIES.map(c => `<option value="${c[0]}">${esc(c[0] === "OTHER" ? t("otherCountry") : countryName(c))}</option>`).join("");
+    cs.value = cv;
+    const ls = f1.elements.studentLevel, lv = ls.value;
+    ls.innerHTML = `<option value="">${esc(t("pickLevel"))}</option>` + ["zero", "some", "basic", "mid", "high"].map(k => `<option value="${k}">${esc(t("sl_" + k))}</option>`).join("");
+    ls.value = lv;
+  }
+  function startFlow() {
+    const c = S.course; if (!c) return;
+    S.waitlist = c.state === "waitlist"; S.info = null; S.shot = null;
+    $("#flowCourse").textContent = pick(c.title);
+    f1.elements.desiredStart.min = S.today;
+    restoreDraft(); renderFlowTexts(); showStep(1); show("vFlow");
+  }
+  function renderFlowTexts() {
+    buildSelects(); restoreSelects();
+    $("#next").textContent = S.waitlist ? t("sendWait") : t("next");
+    $("#flowCourse").textContent = S.course ? pick(S.course.title) : "";
+    $$(".fe[data-for]", f1).forEach(p => { if (p.dataset.k) p.textContent = t(p.dataset.k); });
+    if (!f2.hidden && S.info) { renderSum(); renderCurOpts(); renderPay(); }
+    setShot(S.shot);
+  }
+  function showStep(n) {
+    f1.hidden = n !== 1; f2.hidden = n !== 2;
+    $("#st1").className = n === 1 ? "on" : "done"; $("#st2").className = n === 2 ? "on" : "";
+    $("#steps").hidden = S.waitlist;
+    window.scrollTo({ top: 0 });
+  }
+  const DRAFT = "clsDraft";
+  let pendingSel = {};
+  function saveDraft() {
+    try { const d = {}; ["name", "country", "countryOther", "email", "email2", "whatsapp", "studentLevel", "note"].forEach(n => { d[n] = f1.elements[n].value; }); localStorage.setItem(DRAFT, JSON.stringify(d)); } catch (e) { /* 忽略 */ }
+  }
+  function restoreDraft() {
+    let d = null; try { d = JSON.parse(localStorage.getItem(DRAFT) || "null"); } catch (e) { d = null; }
+    if (!d) return;
+    ["name", "countryOther", "email", "email2", "whatsapp", "note"].forEach(n => { if (d[n] && !f1.elements[n].value) f1.elements[n].value = d[n]; });
+    pendingSel = { country: d.country, studentLevel: d.studentLevel };
+  }
+  function restoreSelects() {
+    ["country", "studentLevel"].forEach(n => { if (pendingSel[n] && !f1.elements[n].value) f1.elements[n].value = pendingSel[n]; });
+    S.country = f1.elements.country.value; $("#otherBox").hidden = S.country !== "OTHER";
+  }
+  f1.addEventListener("input", saveDraft);
+  f1.addEventListener("change", e => {
+    saveDraft();
+    if (e.target.name !== "country") return;
+    $("#otherBox").hidden = e.target.value !== "OTHER";
+    const wa = f1.elements.whatsapp, prev = COUNTRIES.filter(c => c[0] === S.country)[0], cur = COUNTRIES.filter(c => c[0] === e.target.value)[0];
+    const empty = !wa.value.trim() || (prev && prev[4] && wa.value.replace(/\s/g, "") === "+" + prev[4]);
+    if (empty) wa.value = cur && cur[4] ? "+" + cur[4] + " " : "";
+    S.country = e.target.value;
+  });
+  function fieldErr(name, key) {
+    const p = $(`.fe[data-for="${name}"]`, f1); if (p) { p.dataset.k = key || ""; p.textContent = key ? t(key) : ""; }
+    const i = f1.elements[name]; if (i && i.setAttribute) i.setAttribute("aria-invalid", key ? "true" : "false");
+    return !key;
+  }
+  function validate1() {
+    const v = n => (f1.elements[n].value || "").trim(), bad = [];
+    const chk = (name, ok, key) => { if (!fieldErr(name, ok ? "" : key)) bad.push(name); };
+    chk("name", v("name").length >= 2, "eName");
+    chk("country", !!v("country"), "eCountry");
+    chk("countryOther", v("country") !== "OTHER" || v("countryOther").length >= 2, "eOther");
+    chk("email", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v("email")), "eEmail");
+    chk("email2", v("email").toLowerCase() === v("email2").toLowerCase(), "eEmail2");
+    const digits = v("whatsapp").replace(/\D/g, "");
+    chk("whatsapp", v("whatsapp").charAt(0) === "+" && digits.length >= 8 && digits.length <= 15, "eWa");
+    chk("studentLevel", !!v("studentLevel"), "eLevel");
+    chk("agree", f1.elements.agree.checked, "eConsent");
+    if (bad.length) { const el = f1.elements[bad[0]]; if (el && el.focus) el.focus(); return false; }
+    return true;
+  }
+  const showErr = (id, msg) => { const b = $(id); b.hidden = !msg; b.textContent = msg || ""; };
+  const ERR = { rate: "errRate", dup: "errDup", full: "errFull", closed: "errClosed", deadline: "errDeadline", currency: "errCurrency", shot: "errShot", payref: "errPayref", server: "errServer" };
+  const errText = r => (ERR[r.error] ? t(ERR[r.error]) : t("errServer") + " (" + (r.error || "?") + ")");
+
+  function baseBody() {
+    const c = COUNTRIES.filter(x => x[0] === S.country)[0];
+    return {
+      action: "signup", hp: f1.elements.website.value, courseId: S.course.id,
+      name: f1.elements.name.value.trim(), email: f1.elements.email.value.trim(), whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
+      countryCode: S.country, nationality: S.country === "OTHER" ? f1.elements.countryOther.value.trim() : c[2],
+      studentLevel: f1.elements.studentLevel.value, desiredStart: f1.elements.desiredStart.value || "", note: f1.elements.note.value.trim(),
+      acceptedRules: true, uiLang: CLS.getLang()
+    };
+  }
+  f1.addEventListener("submit", async e => {
+    e.preventDefault(); showErr("#err1", "");
+    if (f1.elements.website.value) return;
+    if (!validate1()) return;
+    S.country = f1.elements.country.value;
+    const btn = $("#next"); btn.disabled = true; btn.textContent = t("sending");
+    try {
+      if (S.waitlist) {
+        const r = await apiPost(baseBody());
+        if (!r.ok) { showErr("#err1", errText(r)); return; }
+        finish(r, true); return;
+      }
+      const info = await apiGet("payinfo", { courseId: S.course.id });
+      if (!info.ok) { showErr("#err1", info.error === "closed" ? t("errClosed") : t("errServer")); return; }
+      if (!(info.options || []).length) { showErr("#err1", t("errServer")); return; }
+      S.info = info; S.shot = null;
+      fillStep2(); showStep(2);
+    } catch (err) { console.error(err); showErr("#err1", t("errNet")); }
+    finally { btn.disabled = false; btn.textContent = S.waitlist ? t("sendWait") : t("next"); }
+  });
+
+  /* ---------- 第 2 步：付款 ---------- */
+  const optOf = cur => S.info.options.filter(o => o.currency === cur)[0] || S.info.options[0];
+  function renderSum() {
+    const o = optOf(S.cur);
+    $("#sum").innerHTML = `<dt>${esc(t("sCourse"))}</dt><dd>${esc(pick(S.course.title))}</dd>
+      <dt>${esc(t("sTotal"))}</dt><dd class="total">${o.promo ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}${esc(money(o.amount, o.currency))} <small class="hint">${esc(t("unit_" + (S.course.priceUnit || "month")))}</small></dd>`;
+    const n = $("#promoNote"), pr = S.info.options.some(x => x.promo) && S.info.promoUntil;
+    n.hidden = !pr; if (pr) { const d = daysBetween(S.today, S.info.promoUntil); n.textContent = d <= 0 ? t("promoLast") : t("promoLine", { d: fmtYmd(S.info.promoUntil), n: d }); }
+  }
+  function renderCurOpts() {
+    const opts = S.info.options;
+    $("#curBox").hidden = opts.length < 2;
+    $("#curOpts").innerHTML = opts.map(o => `<label class="opt-row"><input type="radio" name="cur" value="${o.currency}" ${o.currency === S.cur ? "checked" : ""}>
+      <span>${o.promo ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}<b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${esc(t("c" + o.currency))}</span></span></label>`).join("");
+  }
+  const copyRow = text => `<div class="copyrow"><b>${esc(text)}</b><button type="button" class="btn sm" data-copy="${esc(text)}">${esc(t("copy"))}</button></div>`;
+  function renderPay() {
+    const o = optOf(S.cur), mxn = o.currency === "MXN", box = $("#payBox"), amt = money(o.amount, o.currency);
+    if (!mxn) {
+      const link = String((S.info.paypal && S.info.paypal.link) || CLS.DEFAULT_PAYPAL_ME).replace(/\/+$/, "") + "/" + Number(o.amount) + o.currency;
+      box.innerHTML = `<p>${t("payPaypal", { amt: esc(amt) })}</p><a class="btn primary" href="${esc(link)}" target="_blank" rel="noopener">${esc(t("payPaypalBtn"))}</a>
+        <p class="hint" style="margin-top:8px">${esc(t("payPaypalHint"))}</p>`;
+      $("#refLabel").textContent = t("refPaypal"); $("#refHint").textContent = t("refHintPaypal");
+    } else {
+      const b = S.info.bank;
+      box.innerHTML = S.info.bankMode === "show" && b
+        ? `<p>${t("paySpei", { amt: esc(amt) })}</p><dl class="bank"><dt>${esc(t("bankName"))}</dt><dd>${esc(b.bank)}</dd><dt>${esc(t("holder"))}</dt><dd>${esc(b.holder)}</dd></dl>${copyRow(b.clabe)}${b.note ? `<p class="hint">${esc(b.note)}</p>` : ""}`
+        : `<p>${t("payContact", {})}</p><p><b>${esc(amt)}</b></p><div class="actions"><a class="btn sm primary" href="${esc(contactIg())}" target="_blank" rel="noopener">${esc(t("contactIG"))}</a><a class="btn sm" href="mailto:${esc(contactEmail())}">${esc(t("contactMail"))}</a></div>`;
+      $("#refLabel").textContent = t("refSpei"); $("#refHint").textContent = t("refHintSpei");
+    }
+    check2();
+  }
+  function fillStep2() {
+    const opts = S.info.options;
+    S.cur = (S.country === "MX" && opts.some(o => o.currency === "MXN")) ? "MXN" : opts[0].currency;
+    f2.elements.ref.value = ""; f2.elements.paidAt.value = CLS.nowLocal(); f2.elements.paidAt.max = CLS.nowLocal();
+    $("#ok").checked = false; $("#shot").value = ""; showErr("#err2", "");
+    renderSum(); renderCurOpts(); renderPay(); setShot(null);
+  }
+  f2.addEventListener("change", e => { if (e.target.name === "cur") { S.cur = e.target.value; renderSum(); renderPay(); } });
+  f2.addEventListener("input", check2);
+  $("#back").addEventListener("click", () => showStep(1));
+
+  /* 截圖：壓縮成 JPEG 再送 */
+  async function compress(file) {
+    if (!file.type.startsWith("image/")) throw new Error("type");
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("decode")); i.src = url; });
+      const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+      const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.82, out = c.toDataURL("image/jpeg", q);
+      while (out.length > 3000000 && q > 0.5) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+      if (out.length > 5000000) throw new Error("big");
+      return out;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function setShot(dataUrl) {
+    S.shot = dataUrl;
+    const img = $("#prev"); img.hidden = !dataUrl; if (dataUrl) img.src = dataUrl;
+    $("#shotDel").hidden = !dataUrl; $("#shotBtn").textContent = t(dataUrl ? "change" : "upload");
+  }
+  $("#shot").addEventListener("change", async e => {
+    const file = e.target.files[0]; $("#shotErr").textContent = ""; if (!file) return;
+    try { setShot(await compress(file)); } catch (err) { console.error(err); setShot(null); $("#shotErr").textContent = t("shotBad"); }
+    check2();
+  });
+  $("#shotBtn").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#shot").click(); } });
+  $("#shotDel").addEventListener("click", () => { $("#shot").value = ""; setShot(null); check2(); });
+
+  function check2() {
+    const ok = f2.elements.ref.value.trim().length >= 6 && !!f2.elements.paidAt.value && !!S.shot && $("#ok").checked && !S.sending;
+    $("#submit").disabled = !ok; $("#hint2").hidden = ok;
+    $("#submit").textContent = S.sending ? t("sending") : t("submit");
+  }
+  f2.addEventListener("submit", async e => {
+    e.preventDefault(); if ($("#submit").disabled) return;
+    S.sending = true; check2(); showErr("#err2", "");
+    const o = optOf(S.cur), body = baseBody();
+    Object.assign(body, { currency: o.currency, ref: f2.elements.ref.value.trim(), paidAt: f2.elements.paidAt.value, screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] } });
+    try {
+      const r = await apiPost(body);
+      if (!r.ok) { showErr("#err2", errText(r)); return; }
+      finish(r, false);
+    } catch (err) { console.error(err); showErr("#err2", t("errNet")); }
+    finally { S.sending = false; check2(); }
+  });
+
+  /* ---------- 完成 ---------- */
+  let doneInfo = null;
+  function finish(r, wait) {
+    try { localStorage.removeItem(DRAFT); } catch (e) { /* 忽略 */ }
+    doneInfo = { ref: r.ref || "", url: r.myUrl || "", mail: f1.elements.email.value.trim(), wait: wait };
+    renderDone(); show("vDone");
+  }
+  function renderDone() {
+    if (!doneInfo) return;
+    $("#doneTitle").textContent = t(doneInfo.wait ? "doneWaitTitle" : "doneTitle");
+    $("#doneText").textContent = t(doneInfo.wait ? "doneWaitText" : "doneText");
+    $("#doneRef").textContent = doneInfo.ref;
+    $("#doneMail").textContent = t("mailSent", { mail: doneInfo.mail });
+    const a = $("#doneLinkA"); a.textContent = doneInfo.url; a.href = doneInfo.url;
+    $("#doneOpen").href = doneInfo.url; $("#doneCopy").dataset.copy = doneInfo.url; $("#doneCopy").textContent = t("copy");
+  }
+
+  /* ---------- 語言 ---------- */
+  function applyLang() {
+    CLS.setLang(CLS.getLang()); CLS.applyStatic(document);
+    if (S.courses.length || !$("#vList").hidden) { if (S.course) renderDetail(); else if (!$("#vList").hidden) renderList(); }
+    if (!$("#vFlow").hidden) renderFlowTexts();
+    renderDone();
+    f2.hidden || check2();
+  }
+  CLS.bindLangSwitch($("#langsw"), applyLang);
+  CLS.bindCopy();
+  CLS.setLang(CLS.getLang()); CLS.applyStatic(document);
+  $("#submit").textContent = t("submit");
+  setShot(null);
+  init();
+})();
+</script>
+</body>
+</html>
