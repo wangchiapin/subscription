@@ -39,6 +39,9 @@ const srv = http.createServer((q, r) => {
   await pg.fill('[name=name]', "Sofía Ramírez"); await pg.selectOption('[name=country]', { index: 1 }); await pg.fill('[name=email]', "sofia@x.com"); await pg.fill('[name=email2]', "other@x.com"); await pg.fill('[name=whatsapp]', "+52 55 1234 5678");
   const lv = await pg.$$eval('[name=studentLevel] option', o => o.map(x => x.value)); await pg.selectOption('[name=studentLevel]', lv[1]);
   await pg.click("#next"); ok(await pg.locator('#f1 [data-for=email2]:not(:empty)').count() === 1, "兩次 email 不同被擋");
+  ok(await pg.locator('#f1 [data-for=source]:not(:empty)').count() === 1, "沒選「從哪裡知道」被擋");
+  const srcOpts = await pg.$$eval('[name=source] option', o => o.map(x => x.value)); ok(srcOpts.join() === ",ig,fb,friend,wa,other", "「從哪裡知道」選項 " + srcOpts.join());
+  await pg.selectOption('[name=source]', "ig");
   await pg.fill('[name=email2]', "sofia@x.com"); await pg.click("#next"); ok(await pg.locator('#f1 [data-for=agree]:not(:empty)').count() === 1, "沒勾同意被擋");
   await pg.check('[name=agree]'); await pg.click("#next"); await pg.waitForSelector("#f2:not([hidden])");
   ok((await pg.innerText("#curOpts")).includes("USD") || (await pg.innerText("#curOpts")).includes("US"), "有幣別選項");
@@ -51,6 +54,7 @@ const srv = http.createServer((q, r) => {
   await pg.check("#ok"); ok(!(await pg.isDisabled("#submit")), "填完可送出");
   await pg.click("#submit"); await pg.waitForSelector("#vDone:not([hidden])", { timeout: 8000 });
   const su = be.all("cls_signups"); ok(su.length === 1 && su[0].status === "pending" && su[0].expectedAmount === 480, "後端收到報名（優惠價 480）");
+  ok(su[0].source === "ig", "後端存下「從哪裡知道」= ig");
   ok(be.files.length === 1, "截圖存到雲端硬碟"); ok(be.mails.length === 2, "寄了兩封信");
   const link = await pg.getAttribute("#doneOpen", "href"); ok(link.includes(su[0].id), "完成頁有專屬連結");
   // 個人頁：未付款
@@ -67,9 +71,10 @@ const srv = http.createServer((q, r) => {
   ok(r2.ok, "第二人報名 " + JSON.stringify(r2).slice(0, 80));
   const pg2 = await mk(); await pg2.goto(base + "/class/?lang=es#c=c1"); await pg2.waitForSelector("#goSignup");
   ok(/lista de espera|espera/i.test(await pg2.innerText("#detail")), "額滿顯示候補");
-  await pg2.click("#goSignup"); await pg2.fill('[name=name]', "Wait Lista"); await pg2.selectOption('[name=country]', { index: 1 }); await pg2.fill('[name=email]', "w@x.com"); await pg2.fill('[name=email2]', "w@x.com"); await pg2.fill('[name=whatsapp]', "+52 55 9999 8888"); await pg2.selectOption('[name=studentLevel]', lv[1]); await pg2.check('[name=agree]');
+  await pg2.click("#goSignup"); await pg2.fill('[name=name]', "Wait Lista"); await pg2.selectOption('[name=country]', { index: 1 }); await pg2.fill('[name=email]', "w@x.com"); await pg2.fill('[name=email2]', "w@x.com"); await pg2.fill('[name=whatsapp]', "+52 55 9999 8888"); await pg2.selectOption('[name=studentLevel]', lv[1]); await pg2.selectOption('[name=source]', "fb"); await pg2.check('[name=agree]');
   await pg2.click("#next"); await pg2.waitForSelector("#vDone:not([hidden])", { timeout: 8000 });
   ok(be.all("cls_signups").filter(s => s.status === "waitlist").length === 1, "候補直接送出");
+  ok(be.all("cls_signups").filter(s => s.status === "waitlist")[0].source === "fb", "候補也存下「從哪裡知道」");
   ok(pg.errs.length === 0 && pg2.errs.length === 0, "無 JS 錯誤 " + pg.errs.concat(pg2.errs).join("|"));
   await b.close(); srv.close(); console.log(fails ? "FAILED " + fails : "ALL PASS"); process.exit(fails ? 1 : 0);
 })();

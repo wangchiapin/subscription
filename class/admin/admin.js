@@ -24,6 +24,7 @@ const COUNTED = ["pending", "paid"];                                   // 佔名
 const COURSE_STATUS = { draft: "草稿（不公開）", open: "招生中", confirmed: "已成班", full: "額滿", closed: "未成班關閉／結束" };
 const SIGNUP_STATUS = { pending: "待確認", paid: "已付款", waitlist: "候補", refund_pending: "待退款", refunded: "已退款", cancelled: "已取消" };
 const LEVELS = { zero: "零基礎", basic: "初級", mid: "中級", high: "中高級以上", all: "不限程度" };
+const SOURCES = { ig: "Instagram", fb: "Facebook", friend: "朋友介紹", wa: "WhatsApp 群組", other: "其他" };
 const STUDENT_LEVELS = { zero: "完全沒學過", some: "學過一點", basic: "初級", mid: "中級", high: "中高級以上" };
 const JOIN_MODES = { rolling: "隨時可加入", monthly: "每月開新梯次" };
 const UNITS = { month: "每月", course: "整期", session: "每堂" };
@@ -354,6 +355,7 @@ function signupRow(s) {
       <dt>Email</dt><dd><a href="mailto:${esc(s.email)}">${esc(s.email)}</a></dd>
       <dt>WhatsApp</dt><dd><a href="${esc(waHref(s))}" target="_blank" rel="noopener">${esc(s.whatsapp)}</a></dd>
       <dt>國家／程度</dt><dd>${esc(s.country || "-")}／${esc(STUDENT_LEVELS[s.studentLevel] || "-")}</dd>
+      <dt>從哪裡知道</dt><dd>${esc(SOURCES[s.source] || "-")}</dd>
       ${s.payRef ? `<dt>付款憑證編號</dt><dd>${esc(s.payRef)}（學員填的付款時間：${esc(s.paidAt || "-")}）</dd>` : ""}
       ${s.screenshotUrl ? `<dt>匯款截圖</dt><dd><a href="${esc(s.screenshotUrl)}" target="_blank" rel="noopener">開啟截圖</a></dd>` : ""}
       ${s.paidConfirmedAt ? `<dt>確認收款</dt><dd>${esc(fmtTs(s.paidConfirmedAt))}　${esc(money(s.paidAmount, s.paidCurrency))}</dd>` : ""}
@@ -489,7 +491,7 @@ document.addEventListener("click", e => {          // 對話框裡的複製按�
 });
 
 function exportCsv() {
-  const rows = filterSignups(), cols = [["ref", "編號"], ["status", "狀態"], ["course", "班級"], ["name", "姓名"], ["email", "Email"], ["whatsapp", "WhatsApp"], ["country", "國家"], ["studentLevel", "程度"], ["currency", "幣別"], ["amount", "金額"], ["method", "付款方式"], ["payRef", "付款憑證編號"], ["createdAt", "報名時間"], ["desiredStart", "想開始日"], ["paidConfirmedAt", "確認收款時間"], ["note", "備註"]];
+  const rows = filterSignups(), cols = [["ref", "編號"], ["status", "狀態"], ["course", "班級"], ["name", "姓名"], ["email", "Email"], ["whatsapp", "WhatsApp"], ["country", "國家"], ["studentLevel", "程度"], ["source", "從哪裡知道"], ["currency", "幣別"], ["amount", "金額"], ["method", "付款方式"], ["payRef", "付款憑證編號"], ["createdAt", "報名時間"], ["desiredStart", "想開始日"], ["paidConfirmedAt", "確認收款時間"], ["note", "備註"]];
   const q = v => `"${String(v === undefined || v === null ? "" : v).replace(/"/g, '""')}"`;
   const val = (s, k) => k === "status" ? SIGNUP_STATUS[s.status] : k === "course" ? courseTitle(s.courseId) : k === "amount" ? (s.paidAmount || s.expectedAmount || "") : k === "currency" ? (s.paidCurrency || s.currency || "") : s[k];
   const csv = "﻿" + [cols.map(c => q(c[1])).join(",")].concat(rows.map(s => cols.map(c => q(val(s, c[0]))).join(","))).join("\r\n");

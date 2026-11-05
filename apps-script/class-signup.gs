@@ -276,6 +276,9 @@ function rateLimited_(email) {
   cache.put(key, String(n + 1), 3600);
   return false;
 }
+const SOURCES_ = ["ig", "fb", "friend", "wa", "other"];   // 「從哪裡知道」可填的值
+const SOURCE_LABEL_ = { ig: "Instagram", fb: "Facebook", friend: "朋友介紹", wa: "WhatsApp 群組", other: "其他" };
+
 function apiSignup_(b) {
   if (b.hp) return { ok: true, ref: "------" };                      // 防機器人欄位被填：假裝成功
   const today = twToday_();
@@ -312,7 +315,7 @@ function apiSignup_(b) {
       courseId: c.id, courseTitle: c.title || {}, ref: ref, status: waitlist ? "waitlist" : "pending",
       name: name, email: email, whatsapp: wa,
       country: clean_(b.nationality || b.country, 40), countryCode: clean_(b.countryCode, 8),
-      studentLevel: clean_(b.studentLevel, 20), desiredStart: isYmd_(b.desiredStart) ? b.desiredStart : "",
+      studentLevel: clean_(b.studentLevel, 20), source: SOURCES_.indexOf(b.source) >= 0 ? b.source : "", desiredStart: isYmd_(b.desiredStart) ? b.desiredStart : "",
       note: cleanLong_(b.note, 500), uiLang: uiLang,
       acceptedRules: true, acceptedAt: new Date().toISOString(), createdAt: new Date().toISOString()
     };
@@ -351,7 +354,7 @@ function notify_(c, doc, token) {
   const lines = [
     (doc.status === "waitlist" ? "【候補】" : "【新報名】") + title + "　" + doc.name + "　編號 " + doc.ref,
     "", "姓名：" + doc.name, "Email：" + doc.email, "WhatsApp：" + doc.whatsapp, "國家：" + doc.country,
-    "程度：" + (doc.studentLevel || "-"), "想開始上課：" + (doc.desiredStart || "最近一次"),
+    "程度：" + (doc.studentLevel || "-"), "從哪裡知道：" + (SOURCE_LABEL_[doc.source] || "-"), "想開始上課：" + (doc.desiredStart || "最近一次"),
     doc.status === "waitlist" ? "（額滿，已加入候補，未付款）" : "付款：" + doc.currency + " " + doc.expectedAmount + "（" + (doc.method === "spei" ? "披索轉帳" : "PayPal") + "）　憑證編號：" + doc.payRef + (doc.dupRef ? "　⚠ 這個編號跟別筆重複" : ""),
     doc.screenshotUrl ? "匯款截圖：" + doc.screenshotUrl : "", doc.note ? "備註：" + doc.note : "",
     "", "到後台確認：" + siteBase_() + "/class/admin/"

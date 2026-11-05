@@ -72,6 +72,10 @@
         <select name="studentLevel"></select>
         <p class="fe" data-for="studentLevel"></p></label>
 
+      <label><span class="lbl" data-i="source"></span>
+        <select name="source"></select>
+        <p class="fe" data-for="source"></p></label>
+
       <label><span class="lbl" data-i="startWish"></span>
         <input type="date" name="desiredStart">
         <p class="hint" data-i="startHint"></p></label>
@@ -265,6 +269,9 @@
     const ls = f1.elements.studentLevel, lv = ls.value;
     ls.innerHTML = `<option value="">${esc(t("pickLevel"))}</option>` + ["zero", "some", "basic", "mid", "high"].map(k => `<option value="${k}">${esc(t("sl_" + k))}</option>`).join("");
     ls.value = lv;
+    const ss = f1.elements.source, sv = ss.value;
+    ss.innerHTML = `<option value="">${esc(t("pickLevel"))}</option>` + ["ig", "fb", "friend", "wa", "other"].map(k => `<option value="${k}">${esc(t("src_" + k))}</option>`).join("");
+    ss.value = sv;
   }
   function startFlow() {
     const c = S.course; if (!c) return;
@@ -290,16 +297,16 @@
   const DRAFT = "clsDraft";
   let pendingSel = {};
   function saveDraft() {
-    try { const d = {}; ["name", "country", "countryOther", "email", "email2", "whatsapp", "studentLevel", "note"].forEach(n => { d[n] = f1.elements[n].value; }); localStorage.setItem(DRAFT, JSON.stringify(d)); } catch (e) { /* 忽略 */ }
+    try { const d = {}; ["name", "country", "countryOther", "email", "email2", "whatsapp", "studentLevel", "source", "note"].forEach(n => { d[n] = f1.elements[n].value; }); localStorage.setItem(DRAFT, JSON.stringify(d)); } catch (e) { /* 忽略 */ }
   }
   function restoreDraft() {
     let d = null; try { d = JSON.parse(localStorage.getItem(DRAFT) || "null"); } catch (e) { d = null; }
     if (!d) return;
     ["name", "countryOther", "email", "email2", "whatsapp", "note"].forEach(n => { if (d[n] && !f1.elements[n].value) f1.elements[n].value = d[n]; });
-    pendingSel = { country: d.country, studentLevel: d.studentLevel };
+    pendingSel = { country: d.country, studentLevel: d.studentLevel, source: d.source };
   }
   function restoreSelects() {
-    ["country", "studentLevel"].forEach(n => { if (pendingSel[n] && !f1.elements[n].value) f1.elements[n].value = pendingSel[n]; });
+    ["country", "studentLevel", "source"].forEach(n => { if (pendingSel[n] && !f1.elements[n].value) f1.elements[n].value = pendingSel[n]; });
     S.country = f1.elements.country.value; $("#otherBox").hidden = S.country !== "OTHER";
   }
   f1.addEventListener("input", saveDraft);
@@ -328,6 +335,7 @@
     const digits = v("whatsapp").replace(/\D/g, "");
     chk("whatsapp", v("whatsapp").charAt(0) === "+" && digits.length >= 8 && digits.length <= 15, "eWa");
     chk("studentLevel", !!v("studentLevel"), "eLevel");
+    chk("source", !!v("source"), "eSource");
     chk("agree", f1.elements.agree.checked, "eConsent");
     if (bad.length) { const el = f1.elements[bad[0]]; if (el && el.focus) el.focus(); return false; }
     return true;
@@ -342,7 +350,7 @@
       action: "signup", hp: f1.elements.website.value, courseId: S.course.id,
       name: f1.elements.name.value.trim(), email: f1.elements.email.value.trim(), whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
       countryCode: S.country, nationality: S.country === "OTHER" ? f1.elements.countryOther.value.trim() : c[2],
-      studentLevel: f1.elements.studentLevel.value, desiredStart: f1.elements.desiredStart.value || "", note: f1.elements.note.value.trim(),
+      studentLevel: f1.elements.studentLevel.value, source: f1.elements.source.value, desiredStart: f1.elements.desiredStart.value || "", note: f1.elements.note.value.trim(),
       acceptedRules: true, uiLang: CLS.getLang()
     };
   }
