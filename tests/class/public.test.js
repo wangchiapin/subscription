@@ -68,12 +68,16 @@ const srv = http.createServer((q, r) => {
   ok(be.read("cls_codes", "SAVE100").used === 1, "折扣碼使用次數 +1");
   ok(be.files.length === 1, "截圖存到雲端硬碟"); ok(be.mails.length === 2, "寄了兩封信");
   const link = await pg.getAttribute("#doneOpen", "href"); ok(link.includes(su[0].id), "完成頁有專屬連結");
+  // 調課：報名頁詳情、個人頁都要看到
+  const c1 = be.read("cls_courses", "c1"); c1.changes = [{ date: addDays(today, 3), newDate: addDays(today, 4), s: "20:00", e: "21:00", note: "老師臨時有事" }, { date: addDays(today, 9), cancel: true }]; be.put("cls_courses", "c1", c1);
   // 個人頁：未付款
   const my = await pg.context().newPage(); await my.goto(`${base}/class/my/?t=${su[0].id}&lang=es`); await my.waitForTimeout(800);
   let mt = await my.innerText("body"); ok(!mt.includes("zoom.us"), "未付款看不到 Zoom"); ok(/Sofía/.test(mt), "個人頁有姓名");
   // 標記已付款
   const raw = be.read("cls_signups", su[0].id); raw.status = "paid"; be.put("cls_signups", su[0].id, raw);
-  await my.reload(); await my.waitForTimeout(800); mt = await my.innerText("body"); ok(mt.includes("zoom.us/j/777") || (await my.locator('a[href*="zoom.us/j/777"]').count()) === 1, "付款後看到 Zoom"); ok((await my.locator('a[href="https://example.com/l1"]').count()) === 1, "付款後看到教材");
+  await my.reload(); await my.waitForTimeout(800); mt = await my.innerText("body");
+  ok(/老師臨時有事/.test(mt) && mt.includes("20:00"), "個人頁看到調課說明與新時間"); ok((await my.locator(".chg s").count()) === 2, "個人頁劃掉兩個原時間");
+  ok(/Esta clase se cancela/.test(mt), "個人頁顯示取消不補"); ok(mt.includes("zoom.us/j/777") || (await my.locator('a[href*="zoom.us/j/777"]').count()) === 1, "付款後看到 Zoom"); ok((await my.locator('a[href="https://example.com/l1"]').count()) === 1, "付款後看到教材");
   await my.click('[data-lang="hans"]'); ok((await my.innerText("body")).match(/[已付款|上课|教材]/), "個人頁切簡體");
   await my.goto(`${base}/class/my/?t=${"a".repeat(32)}&lang=es`); await my.waitForTimeout(600); ok((await my.locator("#err:not([hidden])").count()) === 1, "錯的連結顯示錯誤");
   // 第二人報名 → 額滿 → 候補

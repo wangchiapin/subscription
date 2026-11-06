@@ -55,7 +55,7 @@ const ACTIVE_DUP = ["pending", "paid", "waitlist"];        // 同一信箱不能
 const VISIBLE = ["open", "confirmed", "full"];             // 報名頁看得到的班級狀態
 const PUBLIC_FIELDS = ["status", "level", "joinMode", "coverUrl", "title", "intro", "rules", "refund", "note",
   "startDate", "endDate", "signupDeadline", "slots", "capacity", "minStudents", "taken", "allowWaitlist",
-  "priceUnit", "priceMXN", "priceUSD", "promoMXN", "promoUSD", "promoUntil", "sortOrder"];
+  "priceUnit", "priceMXN", "priceUSD", "promoMXN", "promoUSD", "promoUntil", "sortOrder", "changes"];
 const REF_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /* ---------------------------------------------------------------------

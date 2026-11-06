@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../common.css?v=2">
+<link rel="stylesheet" href="../common.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -21,7 +21,7 @@
   <div id="main" hidden></div>
   <p class="foot" data-i="foot"></p>
 </div>
-<script src="../common.js?v=2"></script>
+<script src="../common.js?v=3"></script>
 <script>
 (function () {
   "use strict";
@@ -43,6 +43,7 @@
       <div class="tags"><span class="tag ${STATUS_TONE[st] || ""}">${esc(t("my_" + st))}</span></div>
       <p>${esc(t("msg_" + st))}</p>
       <dl class="facts">${facts.map(f => `<dt>${esc(f[0])}</dt><dd>${f[1]}</dd>`).join("")}</dl>
+      ${CLS.changesHtml(c, S.tz, d.today)}
       ${(c.slots || []).length ? `<div class="tzbar"><span>${esc(t("tzLabel"))}</span><select id="tz">${tzOptions(S.tz)}</select></div>` : ""}</article>`;
     if (st === "paid" && acc) {
       html += `<article class="card"><h2>${esc(t("zoom"))}</h2>`

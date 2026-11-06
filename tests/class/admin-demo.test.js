@@ -50,6 +50,24 @@ let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log("FAIL", m);
   await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="attendance"][data-id="demo-c1"]').click(); await pg.waitForSelector("[data-att]");
   await pg.click('[data-act="att-cancel"]'); ok((await pg.locator("[data-att] .list-line").count()) === 0, "停課後不列學員");
   await pg.click('[data-act="att-cancel"]'); await pg.click('[data-act="close"]');
+  // 調課：單堂改時間、取消不補、通知、刪除
+  await pg.click('[data-act="go"][data-id="courses"]'); await pg.click('[data-act="changes"][data-id="demo-c1"]'); await pg.waitForSelector("[data-chg]");
+  await pg.click('#chf button[type=submit]'); ok((await pg.innerText("#chf-err")).includes("一樣"), "新時間跟原本一樣被擋");
+  await pg.fill('#chf [name=s]', "20:00"); await pg.fill('#chf [name=e]', "21:00"); await pg.fill('#chf [name=note]', "老師臨時有事"); await pg.click('#chf button[type=submit]');
+  await pg.waitForSelector('[data-act="chg-del"]'); ok((await pg.locator("[data-chg]").innerText()).includes("20:00"), "調課已存並列出");
+  await pg.selectOption('#chf [name=odate]', { index: 1 }); await pg.check('#chf [name=kind][value=cancel]'); ok(!(await pg.locator("#chf-new").isVisible()), "取消不補時隱藏新時間");
+  await pg.click('#chf button[type=submit]'); await pg.waitForFunction(() => document.querySelectorAll('[data-act="chg-del"]').length === 2);
+  ok((await pg.locator("[data-chg]").innerText()).includes("取消，不補課"), "取消不補已存");
+  await pg.click('[data-act="chg-notify"]'); await pg.waitForSelector("[data-bcid]");
+  const bt = await pg.locator("[data-bcid] a.btn.primary").first().getAttribute("href"); const dec = decodeURIComponent(bt);
+  ok(/調課|调课|cambio/i.test(dec) || dec.includes("20:00"), "整班調課通知帶新時間");
+  ok(dec.includes("20:00") && /取消|cancela/.test(dec), "通知含改時間與取消兩行");
+  await pg.click('[data-act="close"]'); ok((await pg.locator('[data-card="demo-c1"]').innerText()).includes("調課（2）"), "班級卡顯示調課（2）");
+  await pg.click('[data-act="changes"][data-id="demo-c1"]'); await pg.waitForSelector("[data-chg]"); await pg.locator('[data-act="chg-del"]').first().click();
+  await pg.waitForFunction(() => document.querySelectorAll('[data-act="chg-del"]').length === 1); await pg.click('[data-act="close"]');
+  // 編輯班級存檔後調課不能被洗掉
+  await pg.click('[data-act="edit-course"][data-id="demo-c1"]'); await pg.click('#cf button[type=submit]'); await pg.waitForSelector("#dlg", { state: "hidden" });
+  ok((await pg.locator('[data-card="demo-c1"]').innerText()).includes("調課（1）"), "編輯班級後調課還在");
   // 折扣碼：新增、驗證、停用、刪除
   await pg.click('[data-act="go"][data-id="settings"]'); ok((await pg.locator("[data-code]").count()) === 1, "示範折扣碼 1 個");
   await pg.click('[data-act="new-code"]'); await pg.click('#cdf button[type=submit]'); ok(await pg.locator("#cd-err").isVisible(), "空白折扣碼被擋");

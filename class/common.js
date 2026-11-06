@@ -100,6 +100,7 @@
     errFull: ["这个班级刚刚额满了。", "這個班級剛剛額滿了。", "Esta clase acaba de llenarse."], errClosed: ["这个班级已经不接受报名。", "這個班級已經不接受報名。", "Esta clase ya no acepta inscripciones."],
     errDeadline: ["这个班级的报名已截止。", "這個班級的報名已截止。", "La inscripción a esta clase ya cerró."], errCurrency: ["这个班级无法使用该币别，请回上一步再试一次。", "這個班級無法使用該幣別，請回上一步再試一次。", "Esa moneda no está disponible. Vuelve atrás e inténtalo de nuevo."],
     errShot: ["截图太大或不是有效的图片，请换一张。", "截圖太大或不是有效的圖片，請換一張。", "La captura es demasiado grande o no es una imagen válida."],
+    chgTitle: ["课程时间有调整", "課程時間有調整", "Cambio de horario"], chgCancel: ["这堂课取消，不补课", "這堂課取消，不補課", "Esta clase se cancela (sin reposición)"],
     codeLbl: ["折扣码（选填）", "折扣碼（選填）", "Código de descuento (opcional)"], codeApply: ["套用", "套用", "Aplicar"], codeRemove: ["取消折扣码", "取消折扣碼", "Quitar código"],
     codeApplied: ["已套用折扣码 {c}", "已套用折扣碼 {c}", "Código {c} aplicado"],
     errCode: ["折扣码无效，请确认后再试。", "折扣碼無效，請確認後再試。", "Código no válido. Revisa e inténtalo de nuevo."],
@@ -220,6 +221,21 @@
     return { twDay: slot.d, twS: slot.s, twE: slot.e, locDay: a.dow, locS: a.time, locE: b.time };
   }
   const wdName = n => WD[lang][n - 1] || "";
+  /* 單堂調課：course.changes = [{ date: 原本那天, newDate, s, e（台灣時間）, note, cancel }]；只顯示還沒發生的 */
+  function changesHtml(c, tz, today) {
+    const wdOf = ymd => { const p = parseYmd(ymd), w = new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay(); return w === 0 ? 7 : w; };
+    const list = (c.changes || []).filter(x => isYmd(x.date) && (x.cancel || !isYmd(x.newDate) ? x.date : x.newDate) >= today).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (!list.length) return "";
+    const orig = x => { const sl = (c.slots || []).filter(z => z.d === wdOf(x.date))[0]; return `${fmtYmd(x.date)} ${wdName(wdOf(x.date))}${sl ? " " + sl.s + "–" + sl.e : ""}`; };
+    const rows = list.map(x => {
+      if (x.cancel || !isYmd(x.newDate)) return `<li><s>${esc(orig(x))}</s> → ${esc(t("chgCancel"))}${x.note ? `<br><small>${esc(x.note)}</small>` : ""}</li>`;
+      const w = wdOf(x.newDate), v = slotView({ d: w, s: x.s, e: x.e }, tz, x.newDate);
+      return `<li><s>${esc(orig(x))}</s> → <b>${esc(fmtYmd(x.newDate))} ${esc(wdName(w))} ${esc(x.s)}–${esc(x.e)}</b> <small>${esc(t("twTime"))}</small>`
+        + (tz === "Asia/Taipei" ? "" : `<br>→ ${esc(wdName(v.locDay))} ${esc(v.locS)}–${esc(v.locE)} <small>${esc(tzName(tz))}</small>`)
+        + (x.note ? `<br><small>${esc(x.note)}</small>` : "") + `</li>`;
+    });
+    return `<div class="promo chg"><b>${esc(t("chgTitle"))}</b><ul>${rows.join("")}</ul></div>`;
+  }
   function slotsHtml(slots, tz, baseYmd) {
     return (slots || []).map(s => {
       const v = slotView(s, tz, baseYmd);
@@ -285,5 +301,5 @@
   }
 
   global.CLS = { API_URL, DEMO, LANGS, K, COUNTRIES, TZS, $, $$, esc, lsGet, lsPut, pad, getLang, setLang, t, pick, countryName, tzName, applyStatic, bindLangSwitch,
-    parseYmd, isYmd, fmtYmd, daysBetween, addDays, twToday, money, nowLocal, nextOcc, slotView, slotsHtml, defaultTz, tzOptions, validTz, apiGet, apiPost, bindCopy, DEFAULT_PAYPAL_ME, DEFAULT_EMAIL, DEFAULT_IG };
+    parseYmd, isYmd, fmtYmd, daysBetween, addDays, twToday, money, nowLocal, nextOcc, slotView, slotsHtml, changesHtml, defaultTz, tzOptions, validTz, apiGet, apiPost, bindCopy, DEFAULT_PAYPAL_ME, DEFAULT_EMAIL, DEFAULT_IG };
 })(window);

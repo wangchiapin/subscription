@@ -94,4 +94,9 @@ t("報名帶壞折扣碼被擋，不偷偷用原價；不帶碼照舊", () => {
   const r = b.post(body()); assert.strictEqual(b.read("cls_signups", r.token).expectedAmount, 480); assert.strictEqual(b.read("cls_codes", "SAVE100").used, 0);
 });
 t("折扣碼對所選幣別沒折扣就擋", () => { const b = withCode({ off: { USD: 5 } }); assert.strictEqual(b.post(body({ code: "SAVE100", currency: "MXN" })).error, "codeNoBenefit"); assert(b.post(body({ code: "SAVE100", currency: "USD" })).ok); });
+t("調課資料是公開欄位：班級列表與個人頁都帶得到", () => {
+  const ch = [{ date: addDays(today, 3), newDate: addDays(today, 4), s: "20:00", e: "21:00", note: "臨時有事" }, { date: addDays(today, 10), cancel: true }];
+  const b = setup({ changes: ch }); const c = b.get({ action: "courses" }).courses[0]; assert.strictEqual(c.changes.length, 2); assert.strictEqual(c.changes[0].s, "20:00"); assert.strictEqual(c.changes[1].cancel, true);
+  const r = b.post(body()); const m = b.get({ action: "my", t: r.token }); assert.strictEqual(m.course.changes[0].note, "臨時有事");
+});
 console.log(bad ? `FAILED ${bad}/${n + bad}` : `ALL PASS ${n}`); process.exit(bad ? 1 : 0);

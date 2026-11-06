@@ -213,6 +213,7 @@ function courseCard(c) {
       <button class="btn sm" data-act="course-signups" data-id="${esc(c.id)}">看報名（${signupsOf(c.id).length}）</button>
       <button class="btn sm" data-act="batch-notify" data-id="${esc(c.id)}">通知學生</button>
       <button class="btn sm" data-act="attendance" data-id="${esc(c.id)}">點名</button>
+      <button class="btn sm" data-act="changes" data-id="${esc(c.id)}">調課${(c.changes || []).filter(x => (x.cancel || !isYmd(x.newDate) ? x.date : x.newDate) >= twToday()).length ? `（${(c.changes || []).filter(x => (x.cancel || !isYmd(x.newDate) ? x.date : x.newDate) >= twToday()).length}）` : ""}</button>
       <button class="btn sm" data-act="dup-course" data-id="${esc(c.id)}">複製</button>
       ${canClose ? `<button class="btn sm danger" data-act="close-course" data-id="${esc(c.id)}">未成班：關閉並標待退款</button>` : ""}
       <button class="btn sm danger" data-act="del-course" data-id="${esc(c.id)}">刪除</button></div></article>`;
@@ -270,7 +271,7 @@ function readCourseForm() {
     slots: $$("[data-slot]", f).map(r => ({ d: Number($("[name=slotD]", r).value), s: $("[name=slotS]", r).value, e: $("[name=slotE]", r).value })),
     capacity: Math.floor(num(v("capacity"))), minStudents: Math.floor(num(v("minStudents"))), allowWaitlist: f.elements.allowWaitlist.checked,
     priceUnit: v("priceUnit"), priceMXN: num(v("priceMXN")), priceUSD: num(v("priceUSD")), promoMXN: num(v("promoMXN")), promoUSD: num(v("promoUSD")), promoUntil: v("promoUntil"),
-    taken: Number(old.taken) || 0, createdAt: old.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString()
+    changes: Array.isArray(old.changes) ? old.changes : [], taken: Number(old.taken) || 0, createdAt: old.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString()
   });
   const priv = { id: c.id, zoomUrl: v("zoomUrl"), zoomNote: v("zoomNote"), adminNote: v("adminNote"),
     materials: $$("[data-mat]", f).map(r => ({ title: $("[name=matT]", r).value.trim(), url: $("[name=matU]", r).value.trim(), note: $("[name=matN]", r).value.trim() })).filter(m => m.title || m.url) };
@@ -323,7 +324,7 @@ async function closeCourse(id) {
 }
 async function dupCourse(id) {
   const c = courseById(id); if (!c) return;
-  const n = { ...clean(c), id: uid(), status: "draft", taken: 0, title: { ...c.title }, createdAt: new Date().toISOString() };
+  const n = { ...clean(c), id: uid(), status: "draft", taken: 0, changes: [], title: { ...c.title }, createdAt: new Date().toISOString() };
   LANGS.forEach(l => { if (n.title[l[0]]) n.title[l[0]] += l[0] === "es" ? " (copia)" : "（複製）"; });
   try { await store.put("courses", n); const p = privOf(id); await store.put("priv", { ...clean(p), id: n.id }); toast("已複製成草稿"); } catch (e) { console.error(e); toast("複製失敗"); }
 }
@@ -444,8 +445,25 @@ const MSG = {
     es: v => `Hola ${v.name}:\n¡Se liberó un lugar en «${v.title}»! Si todavía quieres unirte, respóndeme y te digo cómo pagar.\n${v.start}${v.sched}\nBen`
   }
 };
-const MSG_LABEL = { paid: "已確認付款（附專屬連結）", confirmed: "成班通知", cancelled: "未成班、退款說明", reminder: "開課提醒", spot: "候補有名額了" };
-const SUBJECT = { paid: { hans: "已确认付款", hant: "已確認付款", es: "Pago confirmado" }, confirmed: { hans: "班级成班通知", hant: "班級成班通知", es: "Clase confirmada" }, cancelled: { hans: "班级未开成与退款", hant: "班級未開成與退款", es: "Clase no abierta y reembolso" }, reminder: { hans: "开课提醒", hant: "開課提醒", es: "Recordatorio de clase" }, spot: { hans: "候补有名额了", hant: "候補有名額了", es: "Lugar disponible" } };
+MSG.change = {
+  hans: v => `${v.name} 你好！\n「${v.title}」的上课时间有调整：\n${v.chg}\n其他时间照旧。最新时间也可以在你的专属页面看到：\n${v.link}\n造成不便，请见谅。\nBen`,
+  hant: v => `${v.name} 你好！\n「${v.title}」的上課時間有調整：\n${v.chg}\n其他時間照舊。最新時間也可以在你的專屬頁面看到：\n${v.link}\n造成不便，請見諒。\nBen`,
+  es: v => `Hola ${v.name}:\nHay un cambio de horario en «${v.title}»:\n${v.chg}\nLas demás clases siguen igual. Puedes ver el horario actualizado en tu página personal:\n${v.link}\nDisculpa las molestias.\nBen`
+};
+const MSG_LABEL = { paid: "已確認付款（附專屬連結）", change: "調課通知", confirmed: "成班通知", cancelled: "未成班、退款說明", reminder: "開課提醒", spot: "候補有名額了" };
+const SUBJECT = { change: { hans: "上课时间调整", hant: "上課時間調整", es: "Cambio de horario" }, paid: { hans: "已确认付款", hant: "已確認付款", es: "Pago confirmado" }, confirmed: { hans: "班级成班通知", hant: "班級成班通知", es: "Clase confirmada" }, cancelled: { hans: "班级未开成与退款", hant: "班級未開成與退款", es: "Clase no abierta y reembolso" }, reminder: { hans: "开课提醒", hant: "開課提醒", es: "Recordatorio de clase" }, spot: { hans: "候补有名额了", hant: "候補有名額了", es: "Lugar disponible" } };
+/* 還沒發生的調課，寫成訊息裡的幾行（含學員當地時間） */
+function chgText(c, s, l) {
+  const tz = COUNTRY_TZ[s.countryCode], lab = d => `${fmtYmdL(d, l)} ${WDL[l][wdOf(d) - 1]}`;
+  const lines = upcomingChanges(c).map(x => {
+    const sl = slotOfDate(c, x.date), o = lab(x.date) + (sl ? ` ${sl.s}` : "");
+    if (x.cancel || !isYmd(x.newDate)) return `• ${o} → ${{ hans: "这堂课取消，不补课", hant: "這堂課取消，不補課", es: "se cancela, sin reposición" }[l]}${x.note ? `（${x.note}）` : ""}`;
+    let t = `• ${o} → ${lab(x.newDate)} ${x.s}–${x.e} (${TW_LABEL[l]})`;
+    if (tz) { const v = CLS.slotView({ d: wdOf(x.newDate), s: x.s, e: x.e }, tz, x.newDate); t += `｜${tzLabel(tz, l)} ${WDL[l][v.locDay - 1]} ${v.locS}–${v.locE}`; }
+    return t + (x.note ? `\n  ${x.note}` : "");
+  });
+  return lines.join("\n") || { hans: "（目前没有调课）", hant: "（目前沒有調課）", es: "(Sin cambios por ahora)" }[l];
+}
 function buildMsg(kind, s, l) {
   const c = courseById(s.courseId), cur = s.paidCurrency || s.currency, amt = s.paidAmount || s.expectedAmount || 0;
   const refundHow = cur === "MXN"
@@ -453,6 +471,7 @@ function buildMsg(kind, s, l) {
     : { hans: "我会从 PayPal 原路退回。", hant: "我會從 PayPal 原路退回。", es: "lo devolveré por PayPal." }[l];
   const v = { name: s.name, ref: s.ref, title: CLS.pick(c ? c.title : s.courseTitle, l), link: myLink(s, l), sched: schedText(c, s, l), amount: amt ? money(amt, cur) : "", refundHow,
     start: c && isYmd(c.startDate) ? { hans: "开课日期：", hant: "開課日期：", es: "Inicio: " }[l] + fmtYmdL(c.startDate, l) + "\n" : "" };
+  v.chg = c ? chgText(c, s, l) : "";
   v.sched = v.sched ? { hans: "上课时间：\n", hant: "上課時間：\n", es: "Horario:\n" }[l] + v.sched + "\n" : "";
   return { text: MSG[kind][l](v), subject: SUBJECT[kind][l] + (v.title ? "：" + v.title : "") };
 }
@@ -513,10 +532,16 @@ const twDate = iso => { const t = Date.parse(iso); return isNaN(t) ? "" : new Da
 const attId = (cid, date) => `${cid}__${date}`;
 const attOf = (cid, date) => state.attendance.find(a => a.id === attId(cid, date));
 /* 這個班到今天為止的上課日（依開課日與每週時段，台灣日期） */
+const changeOf = (c, date) => (c.changes || []).find(x => x.date === date);
+/* 這天是不是不用上課：點名時標了停課，或調課時選了「取消不補」 */
+const dateOff = (c, date) => !!((attOf(c.id, date) || {}).cancelled || (changeOf(c, date) || {}).cancel);
 function classDates(c) {
   if (!isYmd(c.startDate) || !(c.slots || []).length) return [];
   const days = new Set(c.slots.map(x => x.d)), end = isYmd(c.endDate) && c.endDate < twToday() ? c.endDate : twToday(), out = [];
-  for (let d = c.startDate, n = 0; d <= end && n < 400; d = CLS.addDays(d, 1), n++) if (days.has(wdOf(d))) out.push(d);
+  for (let d = c.startDate, n = 0; d <= end && n < 400; d = CLS.addDays(d, 1), n++) {
+    const ch = changeOf(c, d);
+    if (days.has(wdOf(d)) && !(ch && !ch.cancel && isYmd(ch.newDate) && ch.newDate > twToday())) out.push(d);   // 調到未來的那堂，還沒上，先不列
+  }
   return out;
 }
 /* 學員從哪天開始算：付款確認日與他想開始上課的日期，取較晚的 */
@@ -526,7 +551,7 @@ function studentStart(s) {
 }
 function attStats(s) {
   const c = courseById(s.courseId); if (!c) return null;
-  const st = studentStart(s), dates = classDates(c).filter(d => d >= st && !(attOf(c.id, d) || {}).cancelled);
+  const st = studentStart(s), dates = classDates(c).filter(d => d >= st && !dateOff(c, d));
   let a = 0, l = 0; dates.forEach(d => { const m = ((attOf(c.id, d) || {}).marks || {})[s.id]; if (m === "absent") a++; else if (m === "leave") l++; });
   return { n: dates.length, a, l, p: dates.length - a - l };
 }
@@ -536,15 +561,15 @@ function openAttendance(cid, date) {
   const dates = classDates(c).reverse().slice(0, 40);
   date = date || dates[0] || "";
   const sel = dates.slice(); if (date && !sel.includes(date)) sel.unshift(date);
-  const rec = date ? attOf(cid, date) : null, cancelled = !!(rec && rec.cancelled), marks = (rec && rec.marks) || {};
+  const rec = date ? attOf(cid, date) : null, chg = date ? changeOf(c, date) : null, byChange = !!(chg && chg.cancel), cancelled = byChange || !!(rec && rec.cancelled), marks = (rec && rec.marks) || {};
   const people = signupsOf(cid).filter(s => s.status === "paid" && studentStart(s) <= date).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const seg = (s, v, label) => `<button type="button" class="chip ${((marks[s.id] || "present") === v) ? "on" : ""}" data-act="att-set" data-id="${esc(s.id)}" data-v="${v}">${label}</button>`;
   openDlg(`點名：${titleOf(c.title)}`, `<div class="form" data-att data-cid="${esc(cid)}" data-date="${esc(date)}">
-    ${sel.length ? `<label><span class="lbl">上課日期（台灣日期）</span><select id="att-date">${sel.map(d => `<option value="${d}" ${d === date ? "selected" : ""}>${d}（${WD[wdOf(d) - 1]}）</option>`).join("")}</select></label>` : `<p class="hint">還沒有已過的上課日。請確認班級有填開課日與每週上課時段，而且開課日已經到了。</p>`}
+    ${sel.length ? `<label><span class="lbl">上課日期（台灣日期）</span><select id="att-date">${sel.map(d => `<option value="${d}" ${d === date ? "selected" : ""}>${d}（${WD[wdOf(d) - 1]}）${(changeOf(c, d) || {}).cancel ? " 取消" : (changeOf(c, d) || {}).newDate ? ` 已調到 ${changeOf(c, d).newDate}` : ""}</option>`).join("")}</select></label>` : `<p class="hint">還沒有已過的上課日。請確認班級有填開課日與每週上課時段，而且開課日已經到了。</p>`}
     <label><span class="lbl">或選其他日期</span><input type="date" id="att-other" max="${esc(twToday())}"></label>
-    ${date ? (cancelled ? `<p class="hint warnTxt">這天已標成停課，不計入上課堂數。</p>` : (people.length ? `<p class="hint">沒按的都算出席。請假不算出席。</p>
+    ${date ? (cancelled ? `<p class="hint warnTxt">${byChange ? "這天已用「調課」取消不補，" : "這天已標成停課，"}不計入上課堂數。</p>` : (people.length ? `<p class="hint">沒按的都算出席。請假不算出席。</p>
       ${people.map(s => `<div class="list-line"><span><b>${esc(s.name)}</b><span class="sub">${esc(attSummary(s))}</span></span><span class="acts" style="margin:0">${seg(s, "present", "出席")}${seg(s, "absent", "缺席")}${seg(s, "leave", "請假")}</span></div>`).join("")}` : `<div class="empty">這天沒有已付款的學員。</div>`))
-      + `<div class="acts"><button type="button" class="btn sm ${cancelled ? "primary" : ""}" data-act="att-cancel">${cancelled ? "取消停課標記" : "這天停課（不計堂數）"}</button></div>` : ""}</div>`);
+      + (byChange ? "" : `<div class="acts"><button type="button" class="btn sm ${cancelled ? "primary" : ""}" data-act="att-cancel">${cancelled ? "取消停課標記" : "這天停課（不計堂數）"}</button></div>`) : ""}</div>`);
 }
 async function saveAtt(cid, date, rec) {
   const empty = !rec.cancelled && !Object.keys(rec.marks || {}).length;
@@ -565,6 +590,67 @@ async function toggleCancelAtt(cid, date) {
 document.addEventListener("change", e => {
   const box = $("[data-att]"); if (!box) return;
   if (e.target.id === "att-date" || (e.target.id === "att-other" && e.target.value)) openAttendance(box.dataset.cid, e.target.value);
+});
+
+/* ===================================================================== 調課（單堂改時間或取消） */
+/* 存在班級的 changes：[{ date: 原本那天, newDate, s, e（台灣時間）, note, cancel }]。學員的報名頁與專屬頁面會顯示；點名仍用原本那天當代號 */
+const upcomingChanges = c => (c.changes || []).filter(x => (x.cancel || !isYmd(x.newDate) ? x.date : x.newDate) >= twToday()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+const slotOfDate = (c, date) => (c.slots || []).find(x => x.d === wdOf(date));
+function chgLine(c, x) {
+  const o = `${x.date}（${WD[wdOf(x.date) - 1]}）`;
+  return x.cancel || !isYmd(x.newDate) ? `${o} 取消，不補課` : `${o} → ${x.newDate}（${WD[wdOf(x.newDate) - 1]}）${x.s}–${x.e}`;
+}
+function openChanges(cid) {
+  const c = courseById(cid); if (!c) return;
+  const today = twToday(), days = new Set((c.slots || []).map(x => x.d)), opts = [];
+  for (let d = today, n = 0; n < 70 && opts.length < 10; d = CLS.addDays(d, 1), n++) if (days.has(wdOf(d))) opts.push(d);
+  const ups = upcomingChanges(c), first = opts[0] || today, sl = slotOfDate(c, first) || { s: "21:00", e: "22:00" };
+  openDlg(`調課：${titleOf(c.title)}`, `<div class="form" data-chg data-cid="${esc(cid)}">
+    <p class="hint">只改某一堂，每週固定時段不會動。存好後，學員的報名頁和專屬頁面都會顯示新時間；訊息要你自己用「調課通知」送出。</p>
+    ${ups.length ? `<div><span class="lbl">還沒發生的調課</span>${ups.map(x => `<div class="list-line"><span>${esc(chgLine(c, x))}${x.note ? `<span class="sub">${esc(x.note)}</span>` : ""}</span><button type="button" class="btn sm danger" data-act="chg-del" data-id="${esc(x.date)}">刪除</button></div>`).join("")}
+      <div class="acts"><button type="button" class="btn sm primary" data-act="chg-notify">通知學生（調課通知）</button></div></div>` : ""}
+    <form id="chf" class="form" novalidate>
+      <h3>新增調課</h3>
+      <div class="grid2"><label><span class="lbl">原本那一堂（日期）</span><select name="odate">${opts.map(d => `<option value="${d}">${d}（${WD[wdOf(d) - 1]}）${slotOfDate(c, d) ? " " + slotOfDate(c, d).s : ""}</option>`).join("")}</select></label>
+        <label><span class="lbl">或選其他日期</span><input type="date" name="oother" min="${esc(today)}"></label></div>
+      <div class="opts" style="gap:6px"><label class="chk"><input type="radio" name="kind" value="move" checked><span>改到別的時間</span></label><label class="chk"><input type="radio" name="kind" value="cancel"><span>這堂取消，不補課</span></label></div>
+      <div id="chf-new"><div class="grid3"><label><span class="lbl">新日期</span><input type="date" name="newDate" value="${esc(first)}" min="${esc(today)}"></label>
+        <label><span class="lbl">開始（台灣時間）</span><input type="time" name="s" value="${esc(sl.s)}"></label><label><span class="lbl">結束</span><input type="time" name="e" value="${esc(sl.e)}"></label></div></div>
+      <label><span class="lbl">給學員的說明（選填，會顯示在他們的頁面）</span><input type="text" name="note" maxlength="80" placeholder="例如：老師臨時有事，抱歉"></label>
+      <div id="chf-err" class="err-box" hidden></div>
+      <div class="foot"><button type="button" class="btn" data-act="close">關閉</button><button type="submit" class="btn primary">儲存調課</button></div></form></div>`);
+}
+async function saveChanges(c, list) {
+  const n = { ...c, changes: list, updatedAt: new Date().toISOString() };
+  await store.put("courses", n); state.courses = state.courses.map(x => x.id === n.id ? n : x);
+}
+async function saveChange(e) {
+  e.preventDefault();
+  const f = e.target, cid = $("[data-chg]").dataset.cid, c = courseById(cid), v = n => f.elements[n].value.trim(), box = $("#chf-err");
+  const date = v("oother") || v("odate"), cancel = f.elements.kind.value === "cancel", errs = [];
+  if (!isYmd(date)) errs.push("請選原本那一堂的日期");
+  else if (date < twToday()) errs.push("原本那一堂已經過了");
+  else if (!(c.slots || []).some(x => x.d === wdOf(date))) errs.push("那天不是這個班的固定上課日");
+  if (!cancel) {
+    if (!isYmd(v("newDate"))) errs.push("請選新日期"); else if (v("newDate") < twToday()) errs.push("新日期已經過了");
+    if (!v("s") || !v("e")) errs.push("開始和結束時間都要填");
+    if (isYmd(date) && v("newDate") === date && slotOfDate(c, date) && slotOfDate(c, date).s === v("s") && slotOfDate(c, date).e === v("e")) errs.push("新時間跟原本一樣，不用調課");
+  }
+  if (errs.length) { box.hidden = false; box.innerHTML = errs.map(esc).join("<br>"); return; }
+  box.hidden = true;
+  const item = cancel ? { date, cancel: true, note: v("note") } : { date, newDate: v("newDate"), s: v("s"), e: v("e"), note: v("note") };
+  try { await saveChanges(c, (c.changes || []).filter(x => x.date !== date).concat([item])); toast("調課已儲存，學員頁面會顯示"); openChanges(cid); renderMain(); }
+  catch (err) { console.error(err); box.hidden = false; box.textContent = "儲存失敗，請確認登入帳號與 Firestore 規則"; }
+}
+document.addEventListener("change", e => {
+  const box = $("[data-chg]"); if (!box) return;
+  const f = $("#chf"), c = courseById(box.dataset.cid);
+  if (e.target.name === "kind") $("#chf-new").hidden = e.target.value === "cancel";
+  if (e.target.name === "odate" || e.target.name === "oother") {          // 換原本那天，新日期和時間先帶同一天、同一時段
+    const d = f.elements.oother.value || f.elements.odate.value;
+    if (e.target.name === "oother" && e.target.value) f.elements.odate.selectedIndex = -1;
+    if (isYmd(d)) { const sl = slotOfDate(c, d); f.elements.newDate.value = d; if (sl) { f.elements.s.value = sl.s; f.elements.e.value = sl.e; } }
+  }
 });
 
 /* ===================================================================== 收入 */
@@ -728,7 +814,9 @@ const act = {
   "del-signup": async id => { const s = signupById(id); if (!s || !(await confirmBox(`刪除「${s.name}」這筆報名？`, "刪除後無法復原。", "刪除"))) return; await store.remove("signups", id); state.signups = state.signups.filter(x => x.id !== id); await syncTaken(s.courseId); toast("已刪除"); },
   "export-csv": exportCsv, seed: async () => { await seed(); }, wipe: async () => { if (await confirmBox("清空示範資料？", "只會清掉這個瀏覽器裡的示範資料。", "清空")) { await local.wipe(); toast("已清空"); } },
   "set-cstatus": (id, el) => setCourseStatus(id, el.value),
-  attendance: id => openAttendance(id),
+  attendance: id => openAttendance(id), changes: id => openChanges(id),
+  "chg-del": async (date) => { const b = $("[data-chg]"), c = courseById(b.dataset.cid); await saveChanges(c, (c.changes || []).filter(x => x.date !== date)); toast("已刪除這個調課"); openChanges(c.id); renderMain(); },
+  "chg-notify": () => { const cid = $("[data-chg]").dataset.cid; openBatch(cid, "change", "all"); },
   "att-set": (id, el) => { const b = $("[data-att]"); return setAtt(b.dataset.cid, b.dataset.date, id, el.dataset.v); },
   "att-cancel": () => { const b = $("[data-att]"); return toggleCancelAtt(b.dataset.cid, b.dataset.date); },
   "new-code": () => openCodeForm(), "edit-code": id => openCodeForm(id),
@@ -741,7 +829,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => { const el = e.target.closest("select[data-act]"); if (el) act[el.dataset.act](el.dataset.id, el); });
 document.addEventListener("submit", e => {
-  if (e.target.id === "cf") saveCourse(e); else if (e.target.id === "mpf") doMarkPaid(e); else if (e.target.id === "sf") saveSettings(e); else if (e.target.id === "cdf") saveCode(e);
+  if (e.target.id === "cf") saveCourse(e); else if (e.target.id === "mpf") doMarkPaid(e); else if (e.target.id === "sf") saveSettings(e); else if (e.target.id === "cdf") saveCode(e); else if (e.target.id === "chf") saveChange(e);
 });
 document.addEventListener("input", e => { if (e.target.id === "q") { state.q = e.target.value; $("#srows").innerHTML = filterSignups().map(signupRow).join("") || `<div class="empty">這裡沒有報名。</div>`; } });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("#app").hidden && !$("#dlg").open) render(); });
@@ -754,7 +842,7 @@ function showLogin(on) { $("#login").hidden = !on; $("#app").hidden = on; $("#lo
   store = adapter; state.mode = adapter.mode;
   const onData = d => {
     state.courses = (d.courses || []).slice(); state.priv = (d.priv || []).slice(); state.signups = (d.signups || []).slice(); state.codes = (d.codes || []).slice(); state.attendance = (d.attendance || []).slice(); state.settings = mergeSettings(d.settings);
-    if (!($("#dlg").open) || !($("#cf") || $("#cdf") || $("[data-att]"))) render();        // 編輯班級時不要重畫背景，避免打到一半被洗掉
+    if (!($("#dlg").open) || !($("#cf") || $("#cdf") || $("[data-att]") || $("[data-chg]"))) render();        // 編輯班級時不要重畫背景，避免打到一半被洗掉
   };
   if (adapter.mode === "firebase") {
     showLogin(true);

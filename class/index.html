@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=2">
+<link rel="stylesheet" href="common.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -156,7 +156,7 @@
   <p class="foot" data-i="foot"></p>
 </div>
 
-<script src="common.js?v=2"></script>
+<script src="common.js?v=3"></script>
 <script>
 (function () {
   "use strict";
@@ -227,7 +227,7 @@
     const c = S.course; if (!c) return;
     const can = c.state === "open" || c.state === "waitlist";
     $("#detail").innerHTML = `<article class="card">${cover(c)}<div class="tags">${stateTag(c)}${levelTag(c)}</div>
-      <h1 style="font-size:22px">${esc(pick(c.title))}</h1>${tzBar("tz")}${facts(c, true)}${promoHtml(c)}
+      <h1 style="font-size:22px">${esc(pick(c.title))}</h1>${tzBar("tz")}${facts(c, true)}${CLS.changesHtml(c, S.tz, S.today)}${promoHtml(c)}
       ${textSec(t("secIntro"), c.intro)}${textSec(t("secRules"), c.rules)}${textSec(t("secRefund"), c.refund)}${textSec(t("secNote"), c.note)}
       ${can ? `<p style="margin:18px 0 0"><button type="button" class="btn primary block" id="goSignup">${esc(t(c.state === "waitlist" ? "waitBtn" : "signupBtn"))}</button></p>` : ""}</article>`;
   }
