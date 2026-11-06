@@ -36,6 +36,29 @@ let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log("FAIL", m);
   await pg.click('[data-act="go"][data-id="income"]'); ok((await pg.locator("#main").innerText()).includes("合計"), "收入頁");
   await pg.click('[data-act="go"][data-id="settings"]'); await pg.fill('[name=clabe]', "123"); await pg.selectOption('[name=bankMode]', "show"); await pg.click('#sf button[type=submit]');
   ok(await pg.locator("#sf-err").isVisible(), "CLABE 驗證");
+  // 點名：預設全部出席；標缺席、請假；停課
+  await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="attendance"][data-id="demo-c1"]').click(); await pg.waitForSelector("[data-att]");
+  ok((await pg.locator("[data-att] .list-line").count()) === 2, "點名列出 2 位已付款學員");
+  ok((await pg.locator("[data-att] .chip.on", { hasText: "出席" }).count()) === 2, "預設都是出席");
+  await pg.locator("[data-att] .list-line").first().locator('[data-v="absent"]').click();
+  await pg.locator("[data-att] .list-line").nth(1).locator('[data-v="leave"]').click();
+  ok((await pg.locator("[data-att] .chip.on", { hasText: "缺席" }).count()) === 1 && (await pg.locator("[data-att] .chip.on", { hasText: "請假" }).count()) === 1, "缺席與請假有標到");
+  await pg.click('[data-act="close"]');
+  await pg.click('[data-act="go"][data-id="signups"]'); await pg.click('[data-act="filter"][data-id="paid"]');
+  await pg.locator('[data-row="demo-s2"] [data-act="toggle"]').click();
+  const sm = await pg.locator('[data-row] .panel:visible').first().innerText(); ok(/上課 \d+ 堂：出席 \d+、缺席 1、請假 0/.test(sm), "名單詳情顯示累計 " + (sm.match(/上課[^\n]*|還沒有上課日/) || [""])[0]);
+  await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="attendance"][data-id="demo-c1"]').click(); await pg.waitForSelector("[data-att]");
+  await pg.click('[data-act="att-cancel"]'); ok((await pg.locator("[data-att] .list-line").count()) === 0, "停課後不列學員");
+  await pg.click('[data-act="att-cancel"]'); await pg.click('[data-act="close"]');
+  // 折扣碼：新增、驗證、停用、刪除
+  await pg.click('[data-act="go"][data-id="settings"]'); ok((await pg.locator("[data-code]").count()) === 1, "示範折扣碼 1 個");
+  await pg.click('[data-act="new-code"]'); await pg.click('#cdf button[type=submit]'); ok(await pg.locator("#cd-err").isVisible(), "空白折扣碼被擋");
+  await pg.fill('[name=code]', "ab"); await pg.fill('[name=offMXN]', "50"); await pg.click('#cdf button[type=submit]'); ok((await pg.innerText("#cd-err")).includes("3～20"), "太短被擋");
+  await pg.fill('[name=code]', "welcome100"); await pg.click('#cdf button[type=submit]'); ok((await pg.innerText("#cd-err")).includes("已經存在"), "重複被擋");
+  await pg.fill('[name=code]', "new50"); await pg.click('#cdf button[type=submit]'); await pg.waitForSelector("#dlg", { state: "hidden" });
+  ok((await pg.locator("[data-code]").count()) === 2 && (await pg.innerText("#main")).includes("NEW50"), "新增折扣碼");
+  await pg.locator('[data-code="NEW50"] [data-act="toggle-code"]').click(); ok((await pg.locator('[data-code="NEW50"]').innerText()).includes("已停用"), "停用");
+  await pg.locator('[data-code="NEW50"] [data-act="del-code"]').click(); await pg.click("#confirm-ok"); await pg.waitForTimeout(200); ok((await pg.locator("[data-code]").count()) === 1, "刪除");
   // 未成班
   await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="close-course"]').first().click(); await pg.click("#confirm-ok");
   await pg.waitForTimeout(300); await pg.click('[data-act="go"][data-id="signups"]'); await pg.click('[data-act="filter"][data-id="refund_pending"]');

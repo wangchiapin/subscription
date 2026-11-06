@@ -56,10 +56,12 @@
 
 - **學員報名頁** `class/index.html`：班級列表 → 詳情（上課時間自動換算成學員當地時間）→ 填資料 → 付款（披索轉帳或 PayPal 美金）→ 上傳匯款截圖。額滿且開放候補時，免付款直接排候補。語言：簡體（預設，台灣用字）、繁體、西文；網址可加 `?lang=hans|hant|es`，班級直連 `#c=班級ID`。
 - **學員個人頁** `class/my/index.html?t=專屬代碼`：報名成功後給學員的連結；你在後台標「已付款」之後，這頁才會出現 Zoom 連結與教材。
-- **後台** `class/admin/`（獨立頁面）：Google 登入（`class/admin/admin.js` 的 `ALLOWED_EMAILS`）。分頁：班級（新增、編輯、三語文字與「繁轉簡」、開關狀態、複製、未成班一鍵標待退款）、報名（狀態篩選、搜尋、標記已付款、通知草稿、整班通知、匯出 CSV）、收入、設定（轉帳資料、PayPal.me、匯率）。網址加 `?demo=1` 是本機示範模式，不用登入、不碰真資料。
+- **後台** `class/admin/`（獨立頁面）：Google 登入（`class/admin/admin.js` 的 `ALLOWED_EMAILS`）。分頁：班級（新增、編輯、三語文字與「繁轉簡」、開關狀態、複製、未成班一鍵標待退款、點名）、報名（狀態篩選、搜尋、標記已付款、通知草稿、整班通知、匯出 CSV）、收入、設定（轉帳資料、PayPal.me、匯率、折扣碼）。網址加 `?demo=1` 是本機示範模式，不用登入、不碰真資料。
 - **後端** `apps-script/class-signup.gs`：獨立的 Apps Script，部署步驟寫在檔案最上面。公開頁都只透過它讀寫，**不直接碰 Firestore**；轉帳資料在付款步驟才回傳，Zoom 與教材只給已付款的專屬連結。部署後把網頁應用程式網址貼到 `class/common.js` 的 `API_URL`（報名頁與個人頁共用這一處）。沒填時兩頁是示範模式。
-- **資料（Firestore）**：`cls_courses`（班級公開欄位）、`cls_private/{班級ID}`（Zoom、教材、備註）、`cls_signups/{專屬代碼}`（報名；文件 ID 就是學員的專屬代碼）、`cls_settings/main`（設定）。這四個集合沒有公開讀取，前面列的「全部只限管理員」的 `match /{document=**}` 規則已涵蓋，不需要另外加規則。
+- **折扣碼**：固定折掉一個金額（披索、美金各自設定），可限定班級、截止日、使用次數。不跟優惠價疊加，學員付較低的那個。學員在付款步驟輸入，Apps Script 試算並在送出報名時再算一次、計次（`cls_codes/{代碼}` 的 `used`）；後台編輯折扣碼不會蓋掉 `used`。為防猜碼，錯誤嘗試全站 10 分鐘 30 次後暫停試算。已取消或退款的報名不會把次數還回去。
+- **點名**：後台班級卡的「點名」。只記「缺席」「請假」，沒記的都算出席（請假不算出席）；可標「這天停課」不計堂數。上課日依開課日與每週時段算出，學員從付款確認日（或他想開始的日期，取較晚的）才開始算。累計顯示在報名名單的詳情裡。學員看不到。
+- **資料（Firestore）**：`cls_courses`（班級公開欄位）、`cls_private/{班級ID}`（Zoom、教材、備註）、`cls_signups/{專屬代碼}`（報名；文件 ID 就是學員的專屬代碼）、`cls_settings/main`（設定）、`cls_codes/{代碼}`（折扣碼）、`cls_attendance/{班級ID__日期}`（點名紀錄）。這些集合沒有公開讀取，前面列的「全部只限管理員」的 `match /{document=**}` 規則已涵蓋，不需要另外加規則。
 - **狀態**：班級 `draft / open / confirmed / full / closed`（學員看得到 open、confirmed、full）；報名 `pending / paid / waitlist / refund_pending / refunded / cancelled`，其中 `pending`、`paid` 佔名額。優惠價在台灣日期 ≤ 截止日且低於原價時生效。
 - **通知**：後台只產生訊息草稿（WhatsApp / Email / 複製），不會自動寄給學員；報名當下 Apps Script 會寄一封給你、一封確認信給學員。
-- **測試**：`tests/class/`，`gs.test.js`（後端，假 Firestore）、`public.test.js`（報名頁＋個人頁，需要 playwright 與 Chrome）、`admin-demo.test.js`（後台示範模式）。
+- **測試**：`tests/class/`，`gs.test.js`（後端，假 Firestore，含折扣碼）、`public.test.js`（報名頁＋個人頁，需要 playwright 與 Chrome）、`admin-demo.test.js`（後台示範模式）。
 - 繁轉簡使用 `class/admin/opencc-t2cn.js`（opencc-js，MIT，授權檔在同資料夾）。

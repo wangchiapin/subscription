@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=1">
+<link rel="stylesheet" href="common.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -103,6 +103,11 @@
           <span class="lbl" data-i="payCurrency"></span>
           <div class="opts" id="curOpts"></div>
         </div>
+        <div id="codeBox">
+          <label for="codeIn"><span class="lbl" data-i="codeLbl"></span></label>
+          <div class="codeRow"><input type="text" id="codeIn" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="btn sm" id="codeBtn"></button></div>
+          <p class="fe" id="codeMsg" role="status"></p>
+        </div>
         <div class="box" id="payBox"></div>
 
         <label><span class="lbl" id="refLabel"></span>
@@ -151,7 +156,7 @@
   <p class="foot" data-i="foot"></p>
 </div>
 
-<script src="common.js?v=1"></script>
+<script src="common.js?v=2"></script>
 <script>
 (function () {
   "use strict";
@@ -285,7 +290,7 @@
     $("#next").textContent = S.waitlist ? t("sendWait") : t("next");
     $("#flowCourse").textContent = S.course ? pick(S.course.title) : "";
     $$(".fe[data-for]", f1).forEach(p => { if (p.dataset.k) p.textContent = t(p.dataset.k); });
-    if (!f2.hidden && S.info) { renderSum(); renderCurOpts(); renderPay(); }
+    if (!f2.hidden && S.info) { renderSum(); renderCurOpts(); renderPay(); renderCodeUi(); }
     setShot(S.shot);
   }
   function showStep(n) {
@@ -341,7 +346,8 @@
     return true;
   }
   const showErr = (id, msg) => { const b = $(id); b.hidden = !msg; b.textContent = msg || ""; };
-  const ERR = { rate: "errRate", dup: "errDup", full: "errFull", closed: "errClosed", deadline: "errDeadline", currency: "errCurrency", shot: "errShot", payref: "errPayref", server: "errServer" };
+  const ERR = { rate: "errRate", dup: "errDup", full: "errFull", closed: "errClosed", deadline: "errDeadline", currency: "errCurrency", shot: "errShot", payref: "errPayref", server: "errServer", code: "errCode", codeExpired: "errCodeExpired", codeUsedUp: "errCodeUsedUp", codeNoBenefit: "errCodeNoBenefit" };
+  const CODE_ERR = Object.assign({ closed: "errClosed", course: "errServer" }, ERR);
   const errText = r => (ERR[r.error] ? t(ERR[r.error]) : t("errServer") + " (" + (r.error || "?") + ")");
 
   function baseBody() {
@@ -380,15 +386,15 @@
   function renderSum() {
     const o = optOf(S.cur);
     $("#sum").innerHTML = `<dt>${esc(t("sCourse"))}</dt><dd>${esc(pick(S.course.title))}</dd>
-      <dt>${esc(t("sTotal"))}</dt><dd class="total">${o.promo ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}${esc(money(o.amount, o.currency))} <small class="hint">${esc(t("unit_" + (S.course.priceUnit || "month")))}</small></dd>`;
-    const n = $("#promoNote"), pr = S.info.options.some(x => x.promo) && S.info.promoUntil;
+      <dt>${esc(t("sTotal"))}</dt><dd class="total">${o.promo || o.code ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}${esc(money(o.amount, o.currency))} <small class="hint">${esc(t("unit_" + (S.course.priceUnit || "month")))}</small></dd>`;
+    const n = $("#promoNote"), pr = !S.code && S.info.options.some(x => x.promo) && S.info.promoUntil;
     n.hidden = !pr; if (pr) { const d = daysBetween(S.today, S.info.promoUntil); n.textContent = d <= 0 ? t("promoLast") : t("promoLine", { d: fmtYmd(S.info.promoUntil), n: d }); }
   }
   function renderCurOpts() {
     const opts = S.info.options;
     $("#curBox").hidden = opts.length < 2;
     $("#curOpts").innerHTML = opts.map(o => `<label class="opt-row"><input type="radio" name="cur" value="${o.currency}" ${o.currency === S.cur ? "checked" : ""}>
-      <span>${o.promo ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}<b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${esc(t("c" + o.currency))}</span></span></label>`).join("");
+      <span>${o.promo || o.code ? `<span class="was">${esc(money(o.list, o.currency))}</span>` : ""}<b>${esc(money(o.amount, o.currency))}</b> <span class="hint">${esc(t("c" + o.currency))}</span></span></label>`).join("");
   }
   const copyRow = text => `<div class="copyrow"><b>${esc(text)}</b><button type="button" class="btn sm" data-copy="${esc(text)}">${esc(t("copy"))}</button></div>`;
   function renderPay() {
@@ -410,10 +416,31 @@
   function fillStep2() {
     const opts = S.info.options;
     S.cur = (S.country === "MX" && opts.some(o => o.currency === "MXN")) ? "MXN" : opts[0].currency;
+    S.baseOptions = opts.slice(); S.code = ""; S.codeErr = ""; $("#codeIn").value = ""; renderCodeUi();
     f2.elements.ref.value = ""; f2.elements.paidAt.value = CLS.nowLocal(); f2.elements.paidAt.max = CLS.nowLocal();
     $("#ok").checked = false; $("#shot").value = ""; showErr("#err2", "");
     renderSum(); renderCurOpts(); renderPay(); setShot(null);
   }
+  /* 折扣碼：前端只是試算顯示，真正的金額由後端在送出時重算 */
+  function renderCodeUi() {
+    $("#codeIn").disabled = !!S.code; $("#codeBtn").textContent = t(S.code ? "codeRemove" : "codeApply");
+    const m = $("#codeMsg");
+    m.textContent = S.code ? t("codeApplied", { c: S.code }) : (S.codeErr ? t(S.codeErr) : "");
+    m.style.color = S.code ? "var(--good)" : "";
+  }
+  function redrawPrice() { renderSum(); renderCurOpts(); renderPay(); renderCodeUi(); }
+  $("#codeBtn").addEventListener("click", async () => {
+    if (S.code) { S.info.options = S.baseOptions.slice(); S.code = ""; S.codeErr = ""; $("#codeIn").value = ""; redrawPrice(); return; }
+    const raw = $("#codeIn").value.trim(); if (!raw) return;
+    const btn = $("#codeBtn"); btn.disabled = true;
+    try {
+      const r = await apiGet("code", { courseId: S.course.id, code: raw });
+      if (r.ok) { S.code = r.code; S.codeErr = ""; S.info.options = r.options; }
+      else S.codeErr = CODE_ERR[r.error] || "errServer";
+    } catch (err) { console.error(err); S.codeErr = "errNet"; }
+    finally { btn.disabled = false; redrawPrice(); }
+  });
+  $("#codeIn").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#codeBtn").click(); } });
   f2.addEventListener("change", e => { if (e.target.name === "cur") { S.cur = e.target.value; renderSum(); renderPay(); } });
   f2.addEventListener("input", check2);
   $("#back").addEventListener("click", () => showStep(1));
@@ -455,6 +482,7 @@
     e.preventDefault(); if ($("#submit").disabled) return;
     S.sending = true; check2(); showErr("#err2", "");
     const o = optOf(S.cur), body = baseBody();
+    if (S.code) body.code = S.code;
     Object.assign(body, { currency: o.currency, ref: f2.elements.ref.value.trim(), paidAt: f2.elements.paidAt.value, screenshot: { mime: "image/jpeg", data: S.shot.split(",")[1] } });
     try {
       const r = await apiPost(body);

@@ -102,3 +102,8 @@ input[type=file]{position:absolute;left:-9999px}
 .mat{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
 .mat:first-child{border-top:0}
 .back{display:inline-block;margin:0 0 10px;background:none;border:0;padding:6px 0;color:var(--main);font-weight:700;cursor:pointer;font-size:15px}
+
+.codeRow{display:flex;gap:8px}
+.codeRow input{flex:1;min-width:0;text-transform:uppercase}
+.codeRow .btn{flex:none}
+#codeBox{margin:2px 0}

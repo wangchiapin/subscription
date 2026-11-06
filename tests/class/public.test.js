@@ -9,6 +9,7 @@ be.put("cls_courses", "c1", { status: "open", level: "zero", title: { hant: "零
   startDate: addDays(today, 7), slots: [{ d: 1, s: "21:00", e: "22:00" }, { d: 3, s: "21:00", e: "22:00" }], capacity: 2, taken: 0, minStudents: 1, allowWaitlist: true, priceUnit: "month", priceMXN: 600, priceUSD: 35, promoMXN: 480, promoUntil: addDays(today, 3), sortOrder: 1 });
 be.put("cls_private", "c1", { zoomUrl: "https://zoom.us/j/777", zoomNote: "pw 123", materials: [{ title: "Lección 1", url: "https://example.com/l1" }] });
 be.put("cls_settings", "main", { paypalMe: "https://paypal.me/ben790831", bankMode: "show", mxn: { bank: "BBVA", holder: "Ben W", clabe: "012345678901234567" }, contactEmail: "c@x.com" });
+be.put("cls_codes", "SAVE100", { enabled: true, off: { MXN: 200, USD: 5 }, courseIds: [], validUntil: addDays(today, 5), maxUses: 3, used: 0 });
 const png = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AL+AB//Z", "base64");
 const srv = http.createServer((q, r) => {
   const u = new URL(q.url, "http://x");
@@ -49,12 +50,22 @@ const srv = http.createServer((q, r) => {
   await pg.check('input[name=cur][value=USD]'); const href = await pg.getAttribute("#payBox a[href*=paypal]", "href"); ok(href === "https://paypal.me/ben790831/35USD", "PayPal 連結帶金額 " + href);
   await pg.check('input[name=cur][value=MXN]');
   ok(await pg.isDisabled("#submit"), "沒填完不能送出");
+  // 折扣碼
+  await pg.fill("#codeIn", "NOPE"); await pg.click("#codeBtn"); await pg.waitForFunction(() => document.querySelector("#codeMsg").textContent.length > 0);
+  ok(/no válido/i.test(await pg.innerText("#codeMsg")), "壞折扣碼顯示錯誤：" + await pg.innerText("#codeMsg"));
+  await pg.fill("#codeIn", "save100"); await pg.click("#codeBtn"); await pg.waitForFunction(() => /aplicado/i.test(document.querySelector("#codeMsg").textContent));
+  ok((await pg.innerText("#sum")).includes("400"), "套用後金額 400（折 200，比優惠價 480 低）");
+  await pg.check('input[name=cur][value=USD]'); ok((await pg.getAttribute("#payBox a[href*=paypal]", "href")).endsWith("/30USD"), "PayPal 連結用折扣後金額 30");
+  await pg.check('input[name=cur][value=MXN]');
+  await pg.click("#codeBtn"); ok((await pg.innerText("#sum")).includes("480") && !(await pg.innerText("#sum")).includes("400"), "取消折扣碼回到優惠價 480");
+  await pg.fill("#codeIn", "SAVE100"); await pg.click("#codeBtn"); await pg.waitForFunction(() => /aplicado/i.test(document.querySelector("#codeMsg").textContent));
   await pg.fill('#f2 [name=ref]', "SPEI-998877"); await pg.fill('#f2 [name=paidAt]', today + "T10:30");
   fs.writeFileSync("/tmp/shot.jpg", png); await pg.setInputFiles("#shot", "/tmp/shot.jpg"); await pg.waitForSelector("#prev:not([hidden])", { timeout: 5000 }).catch(() => {});
   await pg.check("#ok"); ok(!(await pg.isDisabled("#submit")), "填完可送出");
   await pg.click("#submit"); await pg.waitForSelector("#vDone:not([hidden])", { timeout: 8000 });
-  const su = be.all("cls_signups"); ok(su.length === 1 && su[0].status === "pending" && su[0].expectedAmount === 480, "後端收到報名（優惠價 480）");
+  const su = be.all("cls_signups"); ok(su.length === 1 && su[0].status === "pending" && su[0].expectedAmount === 400 && su[0].codeUsed === "SAVE100", "後端收到報名（折扣碼價 400）");
   ok(su[0].source === "ig", "後端存下「從哪裡知道」= ig");
+  ok(be.read("cls_codes", "SAVE100").used === 1, "折扣碼使用次數 +1");
   ok(be.files.length === 1, "截圖存到雲端硬碟"); ok(be.mails.length === 2, "寄了兩封信");
   const link = await pg.getAttribute("#doneOpen", "href"); ok(link.includes(su[0].id), "完成頁有專屬連結");
   // 個人頁：未付款

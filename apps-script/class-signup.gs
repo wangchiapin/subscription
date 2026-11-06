@@ -8,10 +8,12 @@
      GET  ?action=payinfo&courseId=  該班的實際價格、付款資料（披索轉帳資料在這一步才回傳）
      POST action=signup              送出報名：存匯款截圖到你的私人雲端硬碟、寫進 Firestore、寄信
      GET  ?action=my&t=專屬代碼       學員個人頁；老師標「已付款」之後才回傳 Zoom 連結與教材
+     GET  ?action=code&courseId=&code=  折扣碼試算（固定金額折扣，不跟優惠價疊加，取較低價；送出報名時後端會再算一次）
 
    Firestore 集合（跟 sub_、site_ 不會撞名）
      cls_courses   班級（公開欄位）        cls_private  Zoom 連結與教材（只有已付款學員看得到）
      cls_signups   報名紀錄                cls_settings 設定（main：轉帳資料、PayPal、匯率…）
+     cls_codes     折扣碼（文件 ID＝代碼；只有後端與你的後台讀寫）　cls_attendance 點名紀錄（只有後台用）
 
    ---------------------------------------------------------------------
    部署步驟（第一次）
@@ -46,7 +48,7 @@
 
 const PROJECT_ID = "subscription-48d3c";
 const FS_BASE = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
-const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings" };
+const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings", codes: "cls_codes" };
 const SITE_BASE_DEFAULT = "https://wangchiapin.github.io/subscription";
 const COUNTED = ["pending", "paid"];                       // 佔名額的報名狀態
 const ACTIVE_DUP = ["pending", "paid", "waitlist"];        // 同一信箱不能重複報名同一班
@@ -184,6 +186,40 @@ function priceOptions_(c, today) {
     return promoOn && pv > 0 && pv < list ? { currency: cur, amount: pv, list: list, promo: true } : { currency: cur, amount: list };
   }).filter(Boolean);
 }
+/* ---------------------------------------------------------------------
+   折扣碼：固定金額折扣（披索、美金各自設定）。不跟優惠價疊加，取對學員較低的價格。
+   cls_codes/{代碼}: enabled, off{MXN,USD}, courseIds[]（空＝全部班級）, validUntil（台灣日期）, maxUses（0＝不限）, used
+   --------------------------------------------------------------------- */
+function normCode_(s) { return String(s || "").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 20); }
+function codeFailed_() {
+  const cache = CacheService.getScriptCache(), n = Number(cache.get("code_fail") || 0);
+  cache.put("code_fail", String(n + 1), 600);
+}
+function codeBlocked_() { return Number(CacheService.getScriptCache().get("code_fail") || 0) >= 30; }
+/* 回傳 { code: 文件 } 或 { error } */
+function lookupCode_(course, raw, today) {
+  const id = normCode_(raw);
+  if (codeBlocked_()) return { error: "rate" };
+  if (id.length < 3) { codeFailed_(); return { error: "code" }; }
+  const d = fsGet_(COLL.codes, id);
+  if (!d || d.enabled === false) { codeFailed_(); return { error: "code" }; }
+  const ids = Array.isArray(d.courseIds) ? d.courseIds : [];
+  if (ids.length && ids.indexOf(course.id) < 0) { codeFailed_(); return { error: "code" }; }
+  if (isYmd_(d.validUntil) && today > d.validUntil) return { error: "codeExpired" };
+  const max = Number(d.maxUses) || 0;
+  if (max > 0 && (Number(d.used) || 0) >= max) return { error: "codeUsedUp" };
+  d.id = id;
+  return { code: d };
+}
+/* 用折扣碼重算每個幣別的價格；只有真的比原本（優惠價或原價）便宜才算數 */
+function priceWithCode_(c, today, codeDoc) {
+  return priceOptions_(c, today).map(function (o) {
+    const list = o.list || o.amount, off = Number(codeDoc.off && codeDoc.off[o.currency]) || 0;
+    if (!(off > 0)) return o;
+    const cp = Math.round(Math.max(list - off, 0) * 100) / 100;
+    return cp < o.amount ? { currency: o.currency, amount: cp, list: list, code: true } : o;
+  });
+}
 function loadSettings_() { return fsGet_(COLL.settings, "main") || {}; }
 function bankInfo_(s) {
   const m = s.mxn || {};
@@ -217,6 +253,16 @@ function apiPayInfo_(courseId) {
     bankMode: bankInfo_(s) ? "show" : "contact", bank: bankInfo_(s),
     contact: { email: s.contactEmail || "", ig: s.igUrl || "" }
   };
+}
+function apiCode_(courseId, codeRaw) {
+  const today = twToday_(), c = courseId ? fsGet_(COLL.courses, courseId) : null;
+  if (!c) return { ok: false, error: "course" };
+  if (courseState_(c, today) === "hidden") return { ok: false, error: "closed" };
+  const r = lookupCode_(c, codeRaw, today);
+  if (r.error) return { ok: false, error: r.error };
+  const options = priceWithCode_(c, today, r.code);
+  if (!options.some(function (o) { return o.code; })) return { ok: false, error: "codeNoBenefit" };
+  return { ok: true, code: r.code.id, options: options };
 }
 function apiMy_(token) {
   if (!validToken_(token)) return { ok: false, error: "token" };
@@ -294,7 +340,7 @@ function apiSignup_(b) {
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  let saved = null;
+  let saved = null, codeDoc = null;
   try {
     const c = fsGet_(COLL.courses, String(b.courseId));
     if (!c) return { ok: false, error: "course" };
@@ -320,20 +366,30 @@ function apiSignup_(b) {
       acceptedRules: true, acceptedAt: new Date().toISOString(), createdAt: new Date().toISOString()
     };
     if (!waitlist) {
-      const opt = priceOptions_(c, today).filter(function (o) { return o.currency === b.currency; })[0];
+      let options = priceOptions_(c, today);
+      if (b.code) {
+        const cr = lookupCode_(c, b.code, today);
+        if (cr.error) return { ok: false, error: cr.error };
+        options = priceWithCode_(c, today, cr.code);
+        codeDoc = cr.code;
+      }
+      const opt = options.filter(function (o) { return o.currency === b.currency; })[0];
       if (!opt) return { ok: false, error: "currency" };
+      if (codeDoc && !opt.code) return { ok: false, error: "codeNoBenefit" };
       const payRef = clean_(b.ref, 80);
       if (payRef.length < 6) return { ok: false, error: "payref" };
       if (!clean_(b.paidAt, 20)) return { ok: false, error: "paidAt" };
       saved = saveShot_(b.screenshot, ref, name);
       if (!saved) return { ok: false, error: "shot" };
       doc.currency = opt.currency; doc.expectedAmount = opt.amount; doc.listAmount = opt.list || opt.amount; doc.promoApplied = !!opt.promo;
+      if (opt.code) { doc.codeUsed = codeDoc.id; doc.codeDiscount = Math.round((opt.list - opt.amount) * 100) / 100; }
       doc.method = opt.currency === "MXN" ? "spei" : "paypal";
       doc.payRef = payRef; doc.paidAt = clean_(b.paidAt, 20); doc.screenshotUrl = saved.url;
       doc.dupRef = fsWhereEq_(COLL.signups, "payRef", payRef).length > 0;
     }
     fsCreate_(COLL.signups, token, doc);
     saved = null;                                                    // 已寫入 Firestore，截圖要保留
+    if (codeDoc) { try { fsPatch_(COLL.codes, codeDoc.id, { used: (Number(codeDoc.used) || 0) + 1 }); } catch (e) { console.error("code used " + e); } }
     const taken = recount_(c.id);
     c.taken = taken;
     try { notify_(c, doc, token); } catch (e) { console.error("mail " + e); }
@@ -389,6 +445,7 @@ function doGet(e) {
     if (p.action === "courses") return json_(apiCourses_());
     if (p.action === "payinfo") return json_(apiPayInfo_(p.courseId));
     if (p.action === "my") return json_(apiMy_(p.t));
+    if (p.action === "code") return json_(apiCode_(p.courseId, p.code));
     return json_({ ok: false, error: "action" });
   } catch (err) { console.error(err && err.stack ? err.stack : String(err)); return json_({ ok: false, error: "server" }); }
 }

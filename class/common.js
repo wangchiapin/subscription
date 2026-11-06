@@ -100,6 +100,12 @@
     errFull: ["这个班级刚刚额满了。", "這個班級剛剛額滿了。", "Esta clase acaba de llenarse."], errClosed: ["这个班级已经不接受报名。", "這個班級已經不接受報名。", "Esta clase ya no acepta inscripciones."],
     errDeadline: ["这个班级的报名已截止。", "這個班級的報名已截止。", "La inscripción a esta clase ya cerró."], errCurrency: ["这个班级无法使用该币别，请回上一步再试一次。", "這個班級無法使用該幣別，請回上一步再試一次。", "Esa moneda no está disponible. Vuelve atrás e inténtalo de nuevo."],
     errShot: ["截图太大或不是有效的图片，请换一张。", "截圖太大或不是有效的圖片，請換一張。", "La captura es demasiado grande o no es una imagen válida."],
+    codeLbl: ["折扣码（选填）", "折扣碼（選填）", "Código de descuento (opcional)"], codeApply: ["套用", "套用", "Aplicar"], codeRemove: ["取消折扣码", "取消折扣碼", "Quitar código"],
+    codeApplied: ["已套用折扣码 {c}", "已套用折扣碼 {c}", "Código {c} aplicado"],
+    errCode: ["折扣码无效，请确认后再试。", "折扣碼無效，請確認後再試。", "Código no válido. Revisa e inténtalo de nuevo."],
+    errCodeExpired: ["这个折扣码已经过期。", "這個折扣碼已經過期。", "Este código ya venció."],
+    errCodeUsedUp: ["这个折扣码已经被领完了。", "這個折扣碼已經被領完了。", "Este código ya se agotó."],
+    errCodeNoBenefit: ["这个折扣码对目前的价格没有更多优惠（现在的价格已经比较低）。", "這個折扣碼對目前的價格沒有更多優惠（現在的價格已經比較低）。", "Este código no mejora el precio actual (ya es más bajo)."],
     errPayref: ["请填写完整的交易编号或参考编号。", "請填寫完整的交易編號或參考編號。", "Escribe el ID o la referencia completa."],
     errServer: ["暂时无法送出，请稍后再试。", "暫時無法送出，請稍後再試。", "No pudimos enviar tu solicitud. Inténtalo de nuevo en un momento."],
     errNet: ["无法送出，请检查网路后再试一次。", "無法送出，請檢查網路後再試一次。", "No pudimos enviar. Revisa tu conexión e inténtalo de nuevo."],
@@ -253,6 +259,7 @@
     if (action === "courses") return { ok: true, today: twToday(), courses: [c], contact: { email: "demo@example.com", ig: "" } };
     if (action === "payinfo") return { ok: true, state: "open", options: c.options, promoUntil: c.promoUntil, paypal: { link: "" }, bankMode: "show", bank: { bank: "Banco de ejemplo", holder: "Titular de ejemplo", clabe: "000000000000000000", note: "" }, contact: { email: "demo@example.com", ig: "" } };
     if (action === "my") return { ok: true, today: twToday(), signup: { name: "Demo", ref: "DEMO01", status: p.t === "0".repeat(32) ? "pending" : "paid", courseId: "demo", currency: "MXN", amount: 480, desiredStart: "", createdAt: "", paidAt: "", uiLang: "es" }, course: c, access: { zoomUrl: "https://zoom.us/j/0000000000", zoomNote: "ID: 000 000 0000", materials: [{ title: "Lección 1", url: "https://example.com/1", note: "PDF" }] }, contact: { email: "demo@example.com", ig: "" } };
+    if (action === "code") return String(p.code || "").toUpperCase() === "DEMO100" ? { ok: true, code: "DEMO100", options: c.options.map(o => ({ currency: o.currency, amount: Math.max((o.list || o.amount) - 100, 0), list: o.list || o.amount, code: true })) } : { ok: false, error: "code" };
     return { ok: false, error: "action" };
   }
   async function apiGet(action, params) {

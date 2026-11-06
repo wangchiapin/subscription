@@ -12,7 +12,7 @@ const FIREBASE_CONFIG = {
   measurementId: "G-VSH3HQ2K21"
 };
 const ALLOWED_EMAILS = ["a2224907@gmail.com"];
-const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings" };   // Apps Script（class-signup.gs）也用這些名字
+const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings", codes: "cls_codes", attendance: "cls_attendance" };   // Apps Script（class-signup.gs）也用這些名字
 const SITE_BASE = "https://wangchiapin.github.io/subscription";
 const DEMO_MODE = new URLSearchParams(location.search).has("demo");
 const FIREBASE_READY = !DEMO_MODE && !String(FIREBASE_CONFIG.apiKey).startsWith("YOUR_");
@@ -69,22 +69,22 @@ function confirmBox(title, text, okLabel) {
 const LS_KEY = "cls-admin-v1";
 const local = {
   mode: "local",
-  data: { courses: [], priv: [], signups: [], settings: null },
+  data: { courses: [], priv: [], signups: [], codes: [], attendance: [], settings: null },
   async start(cb) {
     this.cb = cb;
     try { const raw = localStorage.getItem(LS_KEY); if (raw) this.data = JSON.parse(raw); } catch (e) { /* 忽略 */ }
-    ["courses", "priv", "signups"].forEach(k => { this.data[k] = this.data[k] || []; });
+    ["courses", "priv", "signups", "codes", "attendance"].forEach(k => { this.data[k] = this.data[k] || []; });
     cb(this.data);
   },
   persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(this.data)); } catch (e) { /* 忽略 */ } this.cb(this.data); },
   async put(kind, obj) {
     obj = clean(obj);
     if (kind === "settings") this.data.settings = obj;
-    else { const arr = this.data[kind], i = arr.findIndex(x => x.id === obj.id); if (i >= 0) arr[i] = obj; else arr.push(obj); }
+    else { const arr = this.data[kind], i = arr.findIndex(x => x.id === obj.id); if (i >= 0) arr[i] = kind === "codes" ? { ...obj, used: arr[i].used || 0 } : obj; else arr.push(obj); }
     this.persist();
   },
   async remove(kind, ids) { ids = [].concat(ids); this.data[kind] = this.data[kind].filter(x => !ids.includes(x.id)); this.persist(); },
-  async wipe() { this.data = { courses: [], priv: [], signups: [], settings: null }; this.persist(); }
+  async wipe() { this.data = { courses: [], priv: [], signups: [], codes: [], attendance: [], settings: null }; this.persist(); }
 };
 
 async function makeFirestore() {
@@ -94,7 +94,7 @@ async function makeFirestore() {
   const au = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
   const app = appMod.initializeApp(FIREBASE_CONFIG);
   const db = fs.getFirestore(app), auth = au.getAuth(app);
-  const data = { courses: [], priv: [], signups: [], settings: null };
+  const data = { courses: [], priv: [], signups: [], codes: [], attendance: [], settings: null };
   let unsubs = [];
   const api = {
     mode: "firebase",
@@ -109,14 +109,19 @@ async function makeFirestore() {
       api.stop();
       const onErr = err => { console.error(err); toast(err.code === "permission-denied" ? "沒有讀寫權限，請確認 Firestore 規則與登入帳號" : "讀取資料失敗"); };
       const watch = kind => fs.onSnapshot(fs.collection(db, COLL[kind]), snap => { data[kind] = snap.docs.map(d => ({ ...d.data(), id: d.id })); cb(data); }, onErr);
-      unsubs = [watch("courses"), watch("priv"), watch("signups"),
+      unsubs = [watch("courses"), watch("priv"), watch("signups"), watch("codes"), watch("attendance"),
         fs.onSnapshot(fs.doc(db, COLL.settings, "main"), snap => { data.settings = snap.exists() ? snap.data() : null; cb(data); }, onErr)];
     },
-    stop() { unsubs.forEach(u => u()); unsubs = []; data.courses = []; data.priv = []; data.signups = []; data.settings = null; },
+    stop() { unsubs.forEach(u => u()); unsubs = []; data.courses = []; data.priv = []; data.signups = []; data.codes = []; data.attendance = []; data.settings = null; },
     async put(kind, obj) {
       obj = clean(obj);
       if (kind === "settings") return fs.setDoc(fs.doc(db, COLL.settings, "main"), obj);
-      const { id, ...rest } = obj; return fs.setDoc(fs.doc(db, COLL[kind], id), rest);
+      const { id, ...rest } = obj;
+      if (kind === "codes") {                       // 「已使用次數」由 Apps Script 計，後台編輯時不要蓋掉
+        if (data.codes.some(x => x.id === id)) delete rest.used;
+        return fs.setDoc(fs.doc(db, COLL[kind], id), rest, { merge: true });
+      }
+      return fs.setDoc(fs.doc(db, COLL[kind], id), rest);
     },
     async remove(kind, ids) { const b = fs.writeBatch(db); [].concat(ids).forEach(id => b.delete(fs.doc(db, COLL[kind], id))); return b.commit(); }
   };
@@ -124,7 +129,7 @@ async function makeFirestore() {
 }
 
 /* ===================================================================== 狀態與計算 */
-const state = { courses: [], priv: [], signups: [], settings: {}, view: "courses", filter: "pending", courseFilter: "", q: "", mode: "local", user: null, loginMsg: "", open: new Set() };
+const state = { courses: [], priv: [], signups: [], codes: [], attendance: [], settings: {}, view: "courses", filter: "pending", courseFilter: "", q: "", mode: "local", user: null, loginMsg: "", open: new Set() };
 let store = local;
 const mergeSettings = s => ({ ...(s || {}), rates: { ...DEFAULT_RATES, ...((s && s.rates) || {}) }, mxn: { ...((s && s.mxn) || {}) } });
 const courseById = id => state.courses.find(c => c.id === id);
@@ -207,6 +212,7 @@ function courseCard(c) {
     <div class="acts"><button class="btn sm primary" data-act="edit-course" data-id="${esc(c.id)}">編輯</button>
       <button class="btn sm" data-act="course-signups" data-id="${esc(c.id)}">看報名（${signupsOf(c.id).length}）</button>
       <button class="btn sm" data-act="batch-notify" data-id="${esc(c.id)}">通知學生</button>
+      <button class="btn sm" data-act="attendance" data-id="${esc(c.id)}">點名</button>
       <button class="btn sm" data-act="dup-course" data-id="${esc(c.id)}">複製</button>
       ${canClose ? `<button class="btn sm danger" data-act="close-course" data-id="${esc(c.id)}">未成班：關閉並標待退款</button>` : ""}
       <button class="btn sm danger" data-act="del-course" data-id="${esc(c.id)}">刪除</button></div></article>`;
@@ -302,7 +308,7 @@ async function delCourse(id) {
   const c = courseById(id); if (!c) return;
   const n = signupsOf(id).length;
   if (!(await confirmBox(`刪除「${titleOf(c.title)}」？`, n ? `這個班有 ${n} 筆報名。刪除班級後，報名資料仍會保留，但學員的專屬頁面會看不到班級內容。` : "刪除後無法復原。", "刪除"))) return;
-  try { await store.remove("courses", id); await store.remove("priv", id); toast("已刪除"); } catch (e) { console.error(e); toast("刪除失敗"); }
+  try { await store.remove("courses", id); await store.remove("priv", id); const ai = state.attendance.filter(a => a.courseId === id).map(a => a.id); if (ai.length) await store.remove("attendance", ai); toast("已刪除"); } catch (e) { console.error(e); toast("刪除失敗"); }
 }
 async function closeCourse(id) {
   const c = courseById(id); if (!c) return;
@@ -359,6 +365,8 @@ function signupRow(s) {
       ${s.payRef ? `<dt>付款憑證編號</dt><dd>${esc(s.payRef)}（學員填的付款時間：${esc(s.paidAt || "-")}）</dd>` : ""}
       ${s.screenshotUrl ? `<dt>匯款截圖</dt><dd><a href="${esc(s.screenshotUrl)}" target="_blank" rel="noopener">開啟截圖</a></dd>` : ""}
       ${s.paidConfirmedAt ? `<dt>確認收款</dt><dd>${esc(fmtTs(s.paidConfirmedAt))}　${esc(money(s.paidAmount, s.paidCurrency))}</dd>` : ""}
+      ${s.codeUsed ? `<dt>折扣碼</dt><dd>${esc(s.codeUsed)}（折 ${esc(money(s.codeDiscount, s.currency))}）</dd>` : ""}
+      ${s.status === "paid" ? `<dt>出缺席</dt><dd>${esc(attSummary(s))}</dd>` : ""}
       ${s.note ? `<dt>學員備註</dt><dd>${esc(s.note)}</dd>` : ""}
       <dt>同意規定</dt><dd>${s.acceptedAt ? esc(fmtTs(s.acceptedAt)) : "-"}</dd>
       <dt>專屬連結</dt><dd><a href="${esc(myLink(s))}" target="_blank" rel="noopener">開啟學員看到的頁面</a></dd></dl>
@@ -499,6 +507,66 @@ function exportCsv() {
   toast(`已匯出 ${rows.length} 筆`);
 }
 
+/* ===================================================================== 點名：只記「缺席」「請假」，沒記的都算出席 */
+const wdOf = ymd => { const p = CLS.parseYmd(ymd); return ((new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() + 6) % 7) + 1; };
+const twDate = iso => { const t = Date.parse(iso); return isNaN(t) ? "" : new Date(t + 8 * 3600e3).toISOString().slice(0, 10); };
+const attId = (cid, date) => `${cid}__${date}`;
+const attOf = (cid, date) => state.attendance.find(a => a.id === attId(cid, date));
+/* 這個班到今天為止的上課日（依開課日與每週時段，台灣日期） */
+function classDates(c) {
+  if (!isYmd(c.startDate) || !(c.slots || []).length) return [];
+  const days = new Set(c.slots.map(x => x.d)), end = isYmd(c.endDate) && c.endDate < twToday() ? c.endDate : twToday(), out = [];
+  for (let d = c.startDate, n = 0; d <= end && n < 400; d = CLS.addDays(d, 1), n++) if (days.has(wdOf(d))) out.push(d);
+  return out;
+}
+/* 學員從哪天開始算：付款確認日與他想開始上課的日期，取較晚的 */
+function studentStart(s) {
+  const j = twDate(s.paidConfirmedAt || s.createdAt) || "0000-00-00";
+  return isYmd(s.desiredStart) && s.desiredStart > j ? s.desiredStart : j;
+}
+function attStats(s) {
+  const c = courseById(s.courseId); if (!c) return null;
+  const st = studentStart(s), dates = classDates(c).filter(d => d >= st && !(attOf(c.id, d) || {}).cancelled);
+  let a = 0, l = 0; dates.forEach(d => { const m = ((attOf(c.id, d) || {}).marks || {})[s.id]; if (m === "absent") a++; else if (m === "leave") l++; });
+  return { n: dates.length, a, l, p: dates.length - a - l };
+}
+const attSummary = s => { const x = attStats(s); return !x ? "-" : x.n ? `上課 ${x.n} 堂：出席 ${x.p}、缺席 ${x.a}、請假 ${x.l}` : "還沒有上課日"; };
+function openAttendance(cid, date) {
+  const c = courseById(cid); if (!c) return;
+  const dates = classDates(c).reverse().slice(0, 40);
+  date = date || dates[0] || "";
+  const sel = dates.slice(); if (date && !sel.includes(date)) sel.unshift(date);
+  const rec = date ? attOf(cid, date) : null, cancelled = !!(rec && rec.cancelled), marks = (rec && rec.marks) || {};
+  const people = signupsOf(cid).filter(s => s.status === "paid" && studentStart(s) <= date).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const seg = (s, v, label) => `<button type="button" class="chip ${((marks[s.id] || "present") === v) ? "on" : ""}" data-act="att-set" data-id="${esc(s.id)}" data-v="${v}">${label}</button>`;
+  openDlg(`點名：${titleOf(c.title)}`, `<div class="form" data-att data-cid="${esc(cid)}" data-date="${esc(date)}">
+    ${sel.length ? `<label><span class="lbl">上課日期（台灣日期）</span><select id="att-date">${sel.map(d => `<option value="${d}" ${d === date ? "selected" : ""}>${d}（${WD[wdOf(d) - 1]}）</option>`).join("")}</select></label>` : `<p class="hint">還沒有已過的上課日。請確認班級有填開課日與每週上課時段，而且開課日已經到了。</p>`}
+    <label><span class="lbl">或選其他日期</span><input type="date" id="att-other" max="${esc(twToday())}"></label>
+    ${date ? (cancelled ? `<p class="hint warnTxt">這天已標成停課，不計入上課堂數。</p>` : (people.length ? `<p class="hint">沒按的都算出席。請假不算出席。</p>
+      ${people.map(s => `<div class="list-line"><span><b>${esc(s.name)}</b><span class="sub">${esc(attSummary(s))}</span></span><span class="acts" style="margin:0">${seg(s, "present", "出席")}${seg(s, "absent", "缺席")}${seg(s, "leave", "請假")}</span></div>`).join("")}` : `<div class="empty">這天沒有已付款的學員。</div>`))
+      + `<div class="acts"><button type="button" class="btn sm ${cancelled ? "primary" : ""}" data-act="att-cancel">${cancelled ? "取消停課標記" : "這天停課（不計堂數）"}</button></div>` : ""}</div>`);
+}
+async function saveAtt(cid, date, rec) {
+  const empty = !rec.cancelled && !Object.keys(rec.marks || {}).length;
+  state.attendance = state.attendance.filter(a => a.id !== rec.id).concat(empty ? [] : [rec]);
+  if (empty) await store.remove("attendance", rec.id); else await store.put("attendance", rec);
+}
+async function setAtt(cid, date, token, v) {
+  const old = attOf(cid, date) || { id: attId(cid, date), courseId: cid, date, marks: {} }, marks = { ...(old.marks || {}) };
+  if (v === "present") delete marks[token]; else marks[token] = v;
+  await saveAtt(cid, date, { ...old, marks, updatedAt: new Date().toISOString() });
+  openAttendance(cid, date); renderMain();
+}
+async function toggleCancelAtt(cid, date) {
+  const old = attOf(cid, date) || { id: attId(cid, date), courseId: cid, date, marks: {} };
+  await saveAtt(cid, date, { ...old, cancelled: !old.cancelled, updatedAt: new Date().toISOString() });
+  openAttendance(cid, date); renderMain();
+}
+document.addEventListener("change", e => {
+  const box = $("[data-att]"); if (!box) return;
+  if (e.target.id === "att-date" || (e.target.id === "att-other" && e.target.value)) openAttendance(box.dataset.cid, e.target.value);
+});
+
 /* ===================================================================== 收入 */
 function viewIncome() {
   const paid = state.signups.filter(s => s.status === "paid"), pend = state.signups.filter(s => s.status === "pending");
@@ -514,6 +582,57 @@ function viewIncome() {
     ${rows.map(r => `<tr><td>${esc(courseTitle(r.cid))}</td><td>${r.n}</td><td>${esc(money(r.mxn, "MXN"))}</td><td>${esc(money(r.usd, "USD"))}</td><td>${esc(money(r.twd, "TWD"))}</td></tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:var(--soft)">還沒有收入紀錄</td></tr>`}</tbody>
     <tfoot><tr><td>合計</td><td>${tot.n}</td><td>${esc(money(tot.mxn, "MXN"))}</td><td>${esc(money(tot.usd, "USD"))}</td><td>${esc(money(tot.twd, "TWD"))}</td></tr></tfoot></table></div>
     <p class="hint" style="margin-top:10px">只算「已付款」。標記已付款當下的匯率會記下來；匯率可以到「設定」修改。已退款與待退款的不算。</p>`;
+}
+
+/* ===================================================================== 折扣碼 */
+/* 固定金額折扣；不跟優惠價疊加（學員付較低的那個）；學員在付款頁輸入，後端再驗證並計次 */
+const codeCoursesText = k => (k.courseIds || []).length ? k.courseIds.map(courseTitle).join("、") : "全部班級";
+function codeOffText(k) { const b = ["MXN", "USD"].filter(c => num((k.off || {})[c])).map(c => `折 ${money(k.off[c], c)}`); return b.length ? b.join(" ／ ") : "未設定金額"; }
+function codeStatus(k) {
+  if (k.enabled === false) return ["已停用", ""];
+  if (isYmd(k.validUntil) && twToday() > k.validUntil) return ["已過期", "warn"];
+  if (num(k.maxUses) && (Number(k.used) || 0) >= num(k.maxUses)) return ["已用完", "warn"];
+  return ["可使用", "good"];
+}
+function viewCodes() {
+  const list = state.codes.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return `<div class="card"><div class="head" style="margin-bottom:6px"><h3 style="margin:0">折扣碼</h3><button class="btn sm primary" data-act="new-code">＋ 新增折扣碼</button></div>
+    <p class="hint">固定折掉一個金額（披索、美金各自設定）。不跟「優惠價」疊加，學員會付比較低的那個。</p>
+    ${list.length ? list.map(k => { const st = codeStatus(k); return `<div class="list-line" data-code="${esc(k.id)}"><span><b>${esc(k.id)}</b> <span class="tag ${st[1]}">${st[0]}</span>
+      <span class="sub">${esc(codeOffText(k))}　${esc(codeCoursesText(k))}</span>
+      <span class="sub">已用 ${Number(k.used) || 0}${num(k.maxUses) ? ` / ${num(k.maxUses)}` : "（不限次數）"}${isYmd(k.validUntil) ? `　截止 ${esc(k.validUntil)}` : ""}${k.note ? `　${esc(k.note)}` : ""}</span></span>
+      <span class="acts" style="margin:0"><button class="btn sm" data-act="edit-code" data-id="${esc(k.id)}">編輯</button><button class="btn sm" data-act="toggle-code" data-id="${esc(k.id)}">${k.enabled === false ? "啟用" : "停用"}</button><button class="btn sm danger" data-act="del-code" data-id="${esc(k.id)}">刪除</button></span></div>`; }).join("") : `<div class="empty" style="padding:14px 0">還沒有折扣碼。</div>`}</div>`;
+}
+function openCodeForm(id) {
+  const old = id ? state.codes.find(k => k.id === id) : null, k = old || { enabled: true, off: {}, courseIds: [], validUntil: "", maxUses: 0, note: "" };
+  openDlg(old ? `編輯折扣碼：${old.id}` : "新增折扣碼", `<form id="cdf" class="form" novalidate data-old="${old ? esc(old.id) : ""}">
+    <label><span class="lbl">折扣碼（英文、數字，3～20 個字，不分大小寫）</span><input type="text" name="code" value="${esc(old ? old.id : "")}" ${old ? "disabled" : ""} maxlength="20" autocapitalize="characters" autocomplete="off" placeholder="例如：WELCOME100"></label>
+    <div class="grid2"><label><span class="lbl">披索：折掉多少 MXN</span><input type="number" name="offMXN" min="0" step="any" value="${esc((k.off || {}).MXN || "")}"></label>
+      <label><span class="lbl">美金：折掉多少 USD</span><input type="number" name="offUSD" min="0" step="any" value="${esc((k.off || {}).USD || "")}"></label></div>
+    <p class="hint" style="margin-top:-6px">填 0 或留空＝這個幣別沒有折扣。</p>
+    <div><span class="lbl">適用班級（都不勾＝全部班級）</span>${state.courses.length ? state.courses.map(c => `<label class="chk" style="margin:4px 0"><input type="checkbox" name="cid" value="${esc(c.id)}" ${(k.courseIds || []).includes(c.id) ? "checked" : ""}><span>${esc(titleOf(c.title))}</span></label>`).join("") : `<p class="hint">還沒有班級。</p>`}</div>
+    <div class="grid2"><label><span class="lbl">截止日（台灣日期，選填）</span><input type="date" name="validUntil" value="${esc(k.validUntil || "")}"></label>
+      <label><span class="lbl">可使用次數（0＝不限）</span><input type="number" name="maxUses" min="0" step="1" value="${esc(k.maxUses || 0)}"></label></div>
+    <label><span class="lbl">給自己的備註（選填）</span><input type="text" name="note" value="${esc(k.note || "")}" maxlength="80" placeholder="例如：IG 粉絲專屬"></label>
+    <label class="chk"><input type="checkbox" name="enabled" ${k.enabled === false ? "" : "checked"}><span>啟用</span></label>
+    <div id="cd-err" class="err-box" hidden></div>
+    <div class="foot sticky-foot"><button type="button" class="btn" data-act="close">取消</button><button type="submit" class="btn primary">儲存</button></div></form>`);
+}
+async function saveCode(e) {
+  e.preventDefault();
+  const f = e.target, v = n => f.elements[n].value.trim(), box = $("#cd-err"), oldId = f.dataset.old, errs = [];
+  const id = oldId || v("code").toUpperCase().replace(/\s+/g, "");
+  if (!/^[A-Z0-9_-]{3,20}$/.test(id)) errs.push("折扣碼只能用英文、數字、- 和 _，長度 3～20");
+  if (!oldId && state.codes.some(k => k.id === id)) errs.push("這個折扣碼已經存在");
+  const off = { MXN: num(v("offMXN")), USD: num(v("offUSD")) };
+  if (!off.MXN && !off.USD) errs.push("披索或美金至少要填一個折扣金額");
+  if (errs.length) { box.hidden = false; box.innerHTML = errs.map(esc).join("<br>"); return; }
+  box.hidden = true;
+  const prev = state.codes.find(k => k.id === id);
+  try {
+    await store.put("codes", { id, enabled: f.elements.enabled.checked, off, courseIds: $$("input[name=cid]:checked", f).map(x => x.value), validUntil: v("validUntil"), maxUses: Math.floor(num(v("maxUses"))), note: v("note"), used: prev ? Number(prev.used) || 0 : 0 });
+    closeDlg(); toast("折扣碼已儲存"); render();
+  } catch (err) { console.error(err); box.hidden = false; box.textContent = "儲存失敗，請確認登入帳號與 Firestore 規則"; }
 }
 
 /* ===================================================================== 設定 */
@@ -536,6 +655,7 @@ function viewSettings() {
       <div class="grid2"><label><span class="lbl">1 美金 ＝ 台幣</span><input type="number" step="any" name="rUSD" value="${esc(s.rates.USD)}"></label><label><span class="lbl">1 披索 ＝ 台幣</span><input type="number" step="any" name="rMXN" value="${esc(s.rates.MXN)}"></label></div>
       <div id="sf-err" class="err-box" hidden></div>
       <div class="foot"><button type="submit" class="btn primary">儲存設定</button></div></form>
+    ${viewCodes()}
     ${state.mode === "local" ? `<div class="card"><h3>示範資料</h3><p class="hint">本機示範模式專用：載入幾筆假資料來試用，或清空。</p><div class="acts"><button class="btn sm" data-act="seed">載入示範資料</button><button class="btn sm danger" data-act="wipe">清空示範資料</button></div></div>` : ""}`;
 }
 async function saveSettings(e) {
@@ -559,15 +679,16 @@ async function saveSettings(e) {
 /* ---------- 示範資料（本機模式） ---------- */
 async function seed() {
   const today = twToday(), c1 = { ...blankCourse(), id: "demo-c1", status: "open", title: { hant: "零基礎中文團班", hans: "零基础中文团班", es: "Chino desde cero" }, intro: { hant: "從發音開始，每週兩次。", hans: "从发音开始，每周两次。", es: "Desde la pronunciación, dos veces por semana." },
-    rules: { hant: "請準時上線。", hans: "请准时上线。", es: "Sé puntual." }, refund: { hant: "開課前 3 天可全額退費。", hans: "开课前 3 天可全额退费。", es: "Reembolso hasta 3 días antes." }, startDate: CLS.addDays(today, 7),
+    rules: { hant: "請準時上線。", hans: "请准时上线。", es: "Sé puntual." }, refund: { hant: "開課前 3 天可全額退費。", hans: "开课前 3 天可全额退费。", es: "Reembolso hasta 3 días antes." }, startDate: CLS.addDays(today, -14),
     slots: [{ d: 1, s: "21:00", e: "22:00" }, { d: 3, s: "21:00", e: "22:00" }], capacity: 6, minStudents: 3, priceMXN: 600, priceUSD: 35, promoMXN: 480, promoUSD: 28, promoUntil: CLS.addDays(today, 10) };
   const c2 = { ...blankCourse(), id: "demo-c2", status: "draft", sortOrder: 2, level: "mid", title: { hant: "中級會話團班" }, startDate: CLS.addDays(today, 30), slots: [{ d: 5, s: "20:00", e: "21:00" }], priceMXN: 800, priceUSD: 45 };
   const mk = (i, st, over) => ({ id: "demo-s" + i, courseId: "demo-c1", courseTitle: c1.title, ref: "AB" + i + "CD2" + i, status: st, name: ["Sofía Ramírez", "Carlos Pérez", "Lucía Gómez", "Diego Torres", "Ana Silva"][i - 1], email: `demo${i}@example.com`, whatsapp: "+5255123400" + i,
     country: "墨西哥", countryCode: "MX", studentLevel: "zero", uiLang: ["es", "hans", "hant", "es", "es"][i - 1], currency: "MXN", expectedAmount: 480, listAmount: 600, promoApplied: true, method: "spei", payRef: "SPEI-" + i + "00123", paidAt: today + "T10:00",
-    note: "", acceptedRules: true, acceptedAt: new Date().toISOString(), createdAt: new Date(Date.now() - i * 3600e3).toISOString(), ...over });
+    note: "", acceptedRules: true, acceptedAt: new Date().toISOString(), createdAt: new Date(Date.now() - 10 * 864e5 - i * 3600e3).toISOString(), ...over });
   await store.put("courses", c1); await store.put("courses", c2); await store.put("priv", { id: "demo-c1", zoomUrl: "https://zoom.us/j/0000000000", zoomNote: "密碼 123456", materials: [{ title: "第 1 課講義", url: "https://example.com/1", note: "PDF" }], adminNote: "" });
-  const list = [mk(1, "pending"), mk(2, "paid", { paidConfirmedAt: new Date().toISOString(), paidAmount: 480, paidCurrency: "MXN", paidTwd: 816 }), mk(3, "paid", { currency: "USD", expectedAmount: 28, method: "paypal", paidConfirmedAt: new Date().toISOString(), paidAmount: 28, paidCurrency: "USD", paidTwd: 896 }), mk(4, "waitlist", { currency: undefined, expectedAmount: undefined }), mk(5, "refund_pending")];
+  const list = [mk(1, "pending"), mk(2, "paid", { paidConfirmedAt: new Date(Date.now() - 9 * 864e5).toISOString(), paidAmount: 480, paidCurrency: "MXN", paidTwd: 816 }), mk(3, "paid", { currency: "USD", expectedAmount: 28, method: "paypal", paidConfirmedAt: new Date(Date.now() - 9 * 864e5).toISOString(), paidAmount: 28, paidCurrency: "USD", paidTwd: 896 }), mk(4, "waitlist", { currency: undefined, expectedAmount: undefined }), mk(5, "refund_pending")];
   for (const s of list) await store.put("signups", s);
+  await store.put("codes", { id: "WELCOME100", enabled: true, off: { MXN: 100, USD: 3 }, courseIds: [], validUntil: CLS.addDays(today, 30), maxUses: 5, used: 1, note: "IG 粉絲專屬" });
   toast("已載入示範資料");
 }
 
@@ -606,7 +727,13 @@ const act = {
   "save-note": async id => { const s = signupById(id), t = $(`[data-note="${id}"]`); if (!s) return; await store.put("signups", { ...s, adminNote: t.value.trim() }); toast("備註已儲存"); },
   "del-signup": async id => { const s = signupById(id); if (!s || !(await confirmBox(`刪除「${s.name}」這筆報名？`, "刪除後無法復原。", "刪除"))) return; await store.remove("signups", id); state.signups = state.signups.filter(x => x.id !== id); await syncTaken(s.courseId); toast("已刪除"); },
   "export-csv": exportCsv, seed: async () => { await seed(); }, wipe: async () => { if (await confirmBox("清空示範資料？", "只會清掉這個瀏覽器裡的示範資料。", "清空")) { await local.wipe(); toast("已清空"); } },
-  "set-cstatus": (id, el) => setCourseStatus(id, el.value)
+  "set-cstatus": (id, el) => setCourseStatus(id, el.value),
+  attendance: id => openAttendance(id),
+  "att-set": (id, el) => { const b = $("[data-att]"); return setAtt(b.dataset.cid, b.dataset.date, id, el.dataset.v); },
+  "att-cancel": () => { const b = $("[data-att]"); return toggleCancelAtt(b.dataset.cid, b.dataset.date); },
+  "new-code": () => openCodeForm(), "edit-code": id => openCodeForm(id),
+  "toggle-code": async id => { const k = state.codes.find(x => x.id === id); if (k) { await store.put("codes", { ...k, enabled: k.enabled === false }); toast(k.enabled === false ? "已啟用" : "已停用"); } },
+  "del-code": async id => { if (await confirmBox(`刪除折扣碼「${id}」？`, "已經用過這個碼的報名紀錄不會受影響。", "刪除")) { await store.remove("codes", id); toast("已刪除"); } }
 };
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]"); if (!el || el.tagName === "SELECT") return;
@@ -614,7 +741,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => { const el = e.target.closest("select[data-act]"); if (el) act[el.dataset.act](el.dataset.id, el); });
 document.addEventListener("submit", e => {
-  if (e.target.id === "cf") saveCourse(e); else if (e.target.id === "mpf") doMarkPaid(e); else if (e.target.id === "sf") saveSettings(e);
+  if (e.target.id === "cf") saveCourse(e); else if (e.target.id === "mpf") doMarkPaid(e); else if (e.target.id === "sf") saveSettings(e); else if (e.target.id === "cdf") saveCode(e);
 });
 document.addEventListener("input", e => { if (e.target.id === "q") { state.q = e.target.value; $("#srows").innerHTML = filterSignups().map(signupRow).join("") || `<div class="empty">這裡沒有報名。</div>`; } });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("#app").hidden && !$("#dlg").open) render(); });
@@ -626,8 +753,8 @@ function showLogin(on) { $("#login").hidden = !on; $("#app").hidden = on; $("#lo
   if (FIREBASE_READY) { try { adapter = await makeFirestore(); } catch (e) { console.error(e); toast("Firebase 連線失敗，改用本機示範模式"); } }
   store = adapter; state.mode = adapter.mode;
   const onData = d => {
-    state.courses = (d.courses || []).slice(); state.priv = (d.priv || []).slice(); state.signups = (d.signups || []).slice(); state.settings = mergeSettings(d.settings);
-    if (!($("#dlg").open) || !$("#cf")) render();        // 編輯班級時不要重畫背景，避免打到一半被洗掉
+    state.courses = (d.courses || []).slice(); state.priv = (d.priv || []).slice(); state.signups = (d.signups || []).slice(); state.codes = (d.codes || []).slice(); state.attendance = (d.attendance || []).slice(); state.settings = mergeSettings(d.settings);
+    if (!($("#dlg").open) || !($("#cf") || $("#cdf") || $("[data-att]"))) render();        // 編輯班級時不要重畫背景，避免打到一半被洗掉
   };
   if (adapter.mode === "firebase") {
     showLogin(true);

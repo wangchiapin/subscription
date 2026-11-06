@@ -61,4 +61,37 @@ t("my：未付款沒有 access，付款後才有；不外洩 adminNote", () => {
 });
 t("my：壞 token", () => { const b = setup(); assert.strictEqual(b.get({ action: "my", t: "abc" }).error, "token"); assert.strictEqual(b.get({ action: "my", t: "a".repeat(32) }).error, "notfound"); });
 t("未知 action", () => { assert.strictEqual(setup().get({ action: "x" }).error, "action"); });
+
+function withCode(over) { const b = setup({ capacity: 5 }); b.put("cls_codes", "SAVE100", Object.assign({ enabled: true, off: { MXN: 200, USD: 5 }, courseIds: [], validUntil: addDays(today, 5), maxUses: 2, used: 0 }, over || {})); return b; }
+t("折扣碼試算：固定金額、不疊加（取較低）", () => {
+  const b = withCode(); const r = b.get({ action: "code", courseId: "c1", code: " save100 " }); assert(r.ok, JSON.stringify(r)); assert.strictEqual(r.code, "SAVE100");
+  const mxn = r.options.find(o => o.currency === "MXN"), usd = r.options.find(o => o.currency === "USD");
+  assert.strictEqual(mxn.amount, 400); assert(mxn.code); assert.strictEqual(mxn.list, 600);      // 600-200=400 < 優惠價 480
+  assert.strictEqual(usd.amount, 30); assert(usd.code);                                           // 35-5=30
+});
+t("折扣碼比優惠價貴就維持優惠價；全都沒好處回 codeNoBenefit", () => {
+  const b = withCode({ off: { MXN: 50 } }); const r = b.get({ action: "code", courseId: "c1", code: "SAVE100" });   // 600-50=550 > 480
+  assert.strictEqual(r.error, "codeNoBenefit");
+  const b2 = withCode({ off: { MXN: 50, USD: 5 } }); const r2 = b2.get({ action: "code", courseId: "c1", code: "SAVE100" });
+  assert(r2.ok); assert.strictEqual(r2.options.find(o => o.currency === "MXN").amount, 480); assert(!r2.options.find(o => o.currency === "MXN").code);
+});
+t("折扣碼錯誤：不存在、停用、別的班、過期、用完", () => {
+  const e = (over, code) => withCode(over).get({ action: "code", courseId: "c1", code: code || "SAVE100" }).error;
+  assert.strictEqual(e({}, "NOPE"), "code"); assert.strictEqual(e({ enabled: false }), "code"); assert.strictEqual(e({ courseIds: ["other"] }), "code");
+  assert.strictEqual(e({ validUntil: addDays(today, -1) }), "codeExpired"); assert.strictEqual(e({ maxUses: 2, used: 2 }), "codeUsedUp");
+  assert.strictEqual(withCode({ courseIds: ["c1"] }).get({ action: "code", courseId: "c1", code: "SAVE100" }).ok, true);
+});
+t("折扣碼亂猜 30 次後擋下", () => { const b = withCode(); let last; for (let i = 0; i < 31; i++) last = b.get({ action: "code", courseId: "c1", code: "BAD" + i }); assert.strictEqual(last.error, "rate"); });
+t("報名帶折扣碼：後端重算金額、記錄、used+1；用滿後第三人被擋", () => {
+  const b = withCode(); const r = b.post(body({ code: "save100", ref: "SPEI-111111" })); assert(r.ok, JSON.stringify(r));
+  const s = b.read("cls_signups", r.token); assert.strictEqual(s.expectedAmount, 400); assert.strictEqual(s.codeUsed, "SAVE100"); assert.strictEqual(s.codeDiscount, 200); assert.strictEqual(s.promoApplied, false);
+  assert.strictEqual(b.read("cls_codes", "SAVE100").used, 1);
+  assert(b.post(body({ code: "SAVE100", email: "b@x.com", ref: "SPEI-222222" })).ok); assert.strictEqual(b.read("cls_codes", "SAVE100").used, 2);
+  assert.strictEqual(b.post(body({ code: "SAVE100", email: "c@x.com", ref: "SPEI-333333" })).error, "codeUsedUp");
+});
+t("報名帶壞折扣碼被擋，不偷偷用原價；不帶碼照舊", () => {
+  const b = withCode(); assert.strictEqual(b.post(body({ code: "NOPE" })).error, "code"); assert.strictEqual(b.all("cls_signups").length, 0);
+  const r = b.post(body()); assert.strictEqual(b.read("cls_signups", r.token).expectedAmount, 480); assert.strictEqual(b.read("cls_codes", "SAVE100").used, 0);
+});
+t("折扣碼對所選幣別沒折扣就擋", () => { const b = withCode({ off: { USD: 5 } }); assert.strictEqual(b.post(body({ code: "SAVE100", currency: "MXN" })).error, "codeNoBenefit"); assert(b.post(body({ code: "SAVE100", currency: "USD" })).ok); });
 console.log(bad ? `FAILED ${bad}/${n + bad}` : `ALL PASS ${n}`); process.exit(bad ? 1 : 0);
