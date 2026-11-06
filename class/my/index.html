@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../common.css?v=3">
+<link rel="stylesheet" href="../common.css?v=5">
 </head>
 <body>
 <div class="wrap">
@@ -21,7 +21,7 @@
   <div id="main" hidden></div>
   <p class="foot" data-i="foot"></p>
 </div>
-<script src="../common.js?v=3"></script>
+<script src="../common.js?v=5"></script>
 <script>
 (function () {
   "use strict";
@@ -45,6 +45,7 @@
       <dl class="facts">${facts.map(f => `<dt>${esc(f[0])}</dt><dd>${f[1]}</dd>`).join("")}</dl>
       ${CLS.changesHtml(c, S.tz, d.today)}
       ${(c.slots || []).length ? `<div class="tzbar"><span>${esc(t("tzLabel"))}</span><select id="tz">${tzOptions(S.tz)}</select></div>` : ""}</article>`;
+    if (st === "paid") html += CLS.sessionsHtml(d.sessions, S.tz, d.leaveHours);
     if (st === "paid" && acc) {
       html += `<article class="card"><h2>${esc(t("zoom"))}</h2>`
         + (acc.zoomUrl ? `<p><a class="btn primary" href="${esc(acc.zoomUrl)}" target="_blank" rel="noopener">${esc(t("openLink"))}</a></p>` : `<p class="hint">${esc(t("noZoom"))}</p>`)
@@ -53,9 +54,24 @@
         + ((acc.materials || []).length ? acc.materials.map(m => `<div class="mat"><div><b>${esc(m.title)}</b>${m.note ? `<br><small class="hint">${esc(m.note)}</small>` : ""}</div>${m.url ? `<a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener">${esc(t("openLink"))}</a>` : ""}</div>`).join("") : `<p class="hint">${esc(t("noMat"))}</p>`)
         + `</article>`;
     }
+    if (st === "paid") {
+      html += `<article class="card"><h2>${esc(t("renewTitle"))}</h2><p>${esc(t("renewText"))}</p><p><a class="btn" href="../?renew=${esc(token)}">${esc(t("renewBtn"))}</a></p></article>`;
+    }
     html += `<p class="hint">${esc(t("contactMe"))} <a href="mailto:${esc(contactEmail)}">${esc(contactEmail)}</a></p>`;
     $("#main").innerHTML = html;
   }
+  let leaving = false;
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-leave]"); if (!b || leaving) return;
+    leaving = true; b.disabled = true;
+    try {
+      const r = await CLS.apiPost({ action: "leave", t: token, date: b.dataset.leave, undo: !!b.dataset.undo });
+      if (!r.ok && r.error !== "late") throw new Error(r.error || "x");
+      await load();
+      if (!r.ok) { const m = $("#leaveErr"); if (m) m.textContent = t("leaveLate"); }
+    } catch (err) { console.error(err); b.disabled = false; const m = $("#leaveErr"); if (m) m.textContent = t("leaveErr"); }
+    finally { leaving = false; }
+  });
   document.addEventListener("change", e => { if (e.target.id === "tz") { S.tz = e.target.value; lsPut("clsTz", S.tz); render(); } });
 
   function showErr(key) { const b = $("#err"); b.hidden = false; b.dataset.k = key; b.textContent = t(key); }

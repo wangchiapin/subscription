@@ -8,6 +8,9 @@
      GET  ?action=payinfo&courseId=  該班的實際價格、付款資料（披索轉帳資料在這一步才回傳）
      POST action=signup              送出報名：存匯款截圖到你的私人雲端硬碟、寫進 Firestore、寄信
      GET  ?action=my&t=專屬代碼       學員個人頁；老師標「已付款」之後才回傳 Zoom 連結與教材
+     POST action=leave               學員自己請假／取消請假（開課前 2 小時前；寫進點名紀錄並寄信通知你）
+     時間觸發 sendReminders          每小時檢查一次，把 24 小時內要上的課用信提醒已付款、沒請假的學員（同一堂不重複寄）
+     GET  ?action=renew&t=專屬代碼    續報：已付款的舊學生取回上次填的資料，報名頁自動帶入
      GET  ?action=code&courseId=&code=  折扣碼試算（固定金額折扣，不跟優惠價疊加，取較低價；送出報名時後端會再算一次）
 
    Firestore 集合（跟 sub_、site_ 不會撞名）
@@ -28,6 +31,7 @@
             "https://www.googleapis.com/auth/datastore",
             "https://www.googleapis.com/auth/drive",
             "https://www.googleapis.com/auth/script.send_mail",
+            "https://www.googleapis.com/auth/script.scriptapp",
             "https://www.googleapis.com/auth/script.external_request"
           ],
           "webapp": { "executeAs": "USER_DEPLOYING", "access": "ANYONE_ANONYMOUS" }
@@ -43,12 +47,14 @@
    6. 部署 → 新增部署作業 → 類型「網頁應用程式」
         執行身分：我    誰可以存取：所有人
       複製「網頁應用程式網址」，貼到 class/index.html 和 class/my/index.html 最上面的 API_URL。
-   7. 之後改了這個檔案，要「部署 → 管理部署作業 → 編輯 → 新版本」，網址才會用新程式。
+   7. 要自動寄「開課前提醒」：在編輯器選 installReminderTrigger，按「執行」一次（要再授權一次）。
+      想停掉就執行 removeReminderTrigger；也可以在後台「設定」關掉「開課前自動提醒」開關。
+   8. 之後改了這個檔案，要「部署 → 管理部署作業 → 編輯 → 新版本」，網址才會用新程式。
    ===================================================================== */
 
 const PROJECT_ID = "subscription-48d3c";
 const FS_BASE = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
-const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings", codes: "cls_codes" };
+const COLL = { courses: "cls_courses", priv: "cls_private", signups: "cls_signups", settings: "cls_settings", codes: "cls_codes", att: "cls_attendance" };
 const SITE_BASE_DEFAULT = "https://wangchiapin.github.io/subscription";
 const COUNTED = ["pending", "paid"];                       // 佔名額的報名狀態
 const ACTIVE_DUP = ["pending", "paid", "waitlist"];        // 同一信箱不能重複報名同一班
@@ -281,8 +287,180 @@ function apiMy_(token) {
   if (su.status === "paid") {
     const p = fsGet_(COLL.priv, su.courseId) || {};
     out.access = { zoomUrl: p.zoomUrl || "", zoomNote: p.zoomNote || "", materials: Array.isArray(p.materials) ? p.materials : [] };
+    try {
+      out.sessions = c ? upcomingSessions_(c, su, attMap_(c.id), token, 6).map(function (x) { delete x.startMs; return x; }) : [];
+    } catch (e) { console.error("sessions " + e); out.sessions = []; }
+    out.leaveHours = LEAVE_HOURS;
   }
   return out;
+}
+
+/* 續報：舊學生（已付款）用自己的專屬代碼取回上次填的資料，報名頁自動帶入 */
+function apiRenew_(token) {
+  if (!validToken_(token)) return { ok: false, error: "token" };
+  const su = fsGet_(COLL.signups, token);
+  if (!su || su.status !== "paid") return { ok: false, error: "notfound" };
+  return { ok: true, profile: { name: su.name || "", email: su.email || "", whatsapp: su.whatsapp || "", countryCode: su.countryCode || "", country: su.country || "",
+    studentLevel: su.studentLevel || "", source: su.source || "", uiLang: su.uiLang || "es" } };
+}
+
+
+/* ---------------------------------------------------------------------
+   上課日與請假（日期、時間都是台灣時間）
+   點名紀錄 cls_attendance/{班級編號__原上課日}：marks[學員代碼]＝absent｜leave，by[學員代碼]＝student（學員自己請的）
+   --------------------------------------------------------------------- */
+const LEAVE_HOURS = 2;
+function addDaysYmd_(ymd, k) { return new Date(Date.parse(ymd + "T00:00:00Z") + k * 864e5).toISOString().slice(0, 10); }
+function wdOfYmd_(ymd) { const w = new Date(Date.parse(ymd + "T00:00:00Z")).getUTCDay(); return w === 0 ? 7 : w; }
+function twDateOf_(iso) { const t = Date.parse(iso); return isNaN(t) ? "" : new Date(t + 8 * 3600e3).toISOString().slice(0, 10); }
+function studentStart_(su) {
+  const j = twDateOf_(su.paidConfirmedAt || su.createdAt) || "0000-00-00";
+  return isYmd_(su.desiredStart) && su.desiredStart > j ? su.desiredStart : j;
+}
+function attMap_(courseId) {
+  const m = {};
+  fsWhereEq_(COLL.att, "courseId", courseId).forEach(function (a) { if (a.date) m[a.date] = a; });
+  return m;
+}
+/* 這位學員接下來（還沒開始的）上課日：套用調課、停課、他的開始日；依實際開始時間排序 */
+function upcomingSessions_(c, su, att, token, limit) {
+  const out = [], slots = Array.isArray(c.slots) ? c.slots : [], changes = Array.isArray(c.changes) ? c.changes : [];
+  if (!isYmd_(c.startDate) || !slots.length) return out;
+  const nowMs = Date.now(), today = twToday_(), st = studentStart_(su);
+  const from = c.startDate > addDaysYmd_(today, -35) ? c.startDate : addDaysYmd_(today, -35), to = addDaysYmd_(today, 120);
+  for (let d = from; d <= to; d = addDaysYmd_(d, 1)) {
+    const slot = slots.filter(function (z) { return z.d === wdOfYmd_(d); })[0];
+    if (!slot) continue;
+    const ch = changes.filter(function (x) { return x.date === d; })[0] || null, rec = att[d] || {}, marks = rec.marks || {};
+    if ((ch && ch.cancel) || rec.cancelled) continue;
+    let ed = d, sT = slot.s, eT = slot.e, changed = false;
+    if (ch && isYmd_(ch.newDate)) { ed = ch.newDate; sT = ch.s || sT; eT = ch.e || eT; changed = true; }
+    if (isYmd_(c.endDate) && ed > c.endDate) continue;
+    if (ed < st) continue;
+    const startMs = Date.parse(ed + "T" + sT + ":00+08:00");
+    if (isNaN(startMs) || startMs <= nowMs) continue;
+    const mark = marks[token] || "";
+    out.push({ date: d, ed: ed, s: sT, e: eT, changed: changed, leave: mark === "leave", absent: mark === "absent", canLeave: mark !== "absent" && startMs - nowMs >= LEAVE_HOURS * 3600e3, startMs: startMs });
+  }
+  out.sort(function (a, b) { return a.startMs - b.startMs; });
+  return out.slice(0, limit || 6);
+}
+function apiLeave_(b) {
+  const token = String(b.t || ""), date = String(b.date || "");
+  if (!validToken_(token) || !isYmd_(date)) return { ok: false, error: "bad" };
+  const cache = CacheService.getScriptCache(), key = "lv_" + token, n = Number(cache.get(key) || 0);
+  if (n >= 20) return { ok: false, error: "rate" };
+  cache.put(key, String(n + 1), 3600);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const su = fsGet_(COLL.signups, token);
+    if (!su || su.status !== "paid") return { ok: false, error: "notpaid" };
+    const c = fsGet_(COLL.courses, su.courseId);
+    if (!c) return { ok: false, error: "course" };
+    const att = attMap_(c.id), sess = upcomingSessions_(c, su, att, token, 60).filter(function (x) { return x.date === date; })[0];
+    if (!sess) return { ok: false, error: "nosession" };
+    const rec = att[date] || null, marks = Object.assign({}, rec && rec.marks), by = Object.assign({}, rec && rec.by), cur = marks[token] || "";
+    const undo = !!b.undo;
+    if (undo) {
+      if (cur !== "leave") return { ok: true, leave: false };
+      delete marks[token]; delete by[token];
+    } else {
+      if (cur === "leave") return { ok: true, leave: true };
+      if (!sess.canLeave) return { ok: false, error: "late" };
+      marks[token] = "leave"; by[token] = "student";
+    }
+    const patch = { marks: marks, by: by, updatedAt: new Date().toISOString() };
+    if (rec) fsPatch_(COLL.att, rec.id, patch);
+    else fsCreate_(COLL.att, c.id + "__" + date, Object.assign({ courseId: c.id, date: date }, patch));
+    try {
+      const title = pickText_(c.title, "hant");
+      MailApp.sendEmail({ to: notifyEmail_(), name: "團班報名", subject: (undo ? "[取消請假] " : "[請假] ") + su.name + "　" + sess.ed + " " + sess.s,
+        body: su.name + (undo ? " 取消了請假" : " 自己請假了") + "\n班級：" + title + "\n上課：" + sess.ed + " " + sess.s + "–" + sess.e + "（台灣時間）\n\n點名頁會自動標成請假：" + siteBase_() + "/class/admin/" });
+    } catch (e) { console.error("leave mail " + e); }
+    return { ok: true, leave: !undo };
+  } finally { lock.releaseLock(); }
+}
+
+
+/* ---------------------------------------------------------------------
+   開課前提醒（時間觸發，每小時跑一次）
+   寄給：已付款、這堂沒請假也沒被標缺席的學員。條件：24 小時內開始、還沒開始超過 30 分鐘以上。
+   同一堂只寄一次：signup.reminded 記「原上課日@實際日期T開始時間」，老師把課調到別天會再寄一次新時間。
+   --------------------------------------------------------------------- */
+const REMIND_HOURS = 24, REMIND_MIN_MINUTES = 30;
+const COUNTRY_TZ_ = { MX: "America/Mexico_City", ES: "Europe/Madrid", AR: "America/Argentina/Buenos_Aires", CO: "America/Bogota", CL: "America/Santiago", PE: "America/Lima",
+  EC: "America/Guayaquil", VE: "America/Caracas", UY: "America/Montevideo", BO: "America/La_Paz", PY: "America/Asuncion", CR: "America/Costa_Rica", GT: "America/Guatemala",
+  SV: "America/El_Salvador", HN: "America/Tegucigalpa", NI: "America/Managua", PA: "America/Panama", DO: "America/Santo_Domingo", CU: "America/Havana", TW: "Asia/Taipei" };
+const WD_NAMES_ = { es: ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"], hant: ["週一", "週二", "週三", "週四", "週五", "週六", "週日"], hans: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] };
+function localWhen_(startMs, durMs, tz, lang) {
+  const a = Utilities.formatDate(new Date(startMs), tz, "yyyy-MM-dd HH:mm"), b = Utilities.formatDate(new Date(startMs + durMs), tz, "HH:mm");
+  const u = Number(Utilities.formatDate(new Date(startMs), tz, "u")) || 1;
+  return a.slice(0, 10) + " " + (WD_NAMES_[lang] || WD_NAMES_.hant)[u - 1] + " " + a.slice(11) + "–" + b;
+}
+function reminderMail_(su, c, sess, zoom) {
+  const lang = ["hans", "hant", "es"].indexOf(su.uiLang) >= 0 ? su.uiLang : "es", title = pickText_(c.title, lang);
+  const startMs = Date.parse(sess.ed + "T" + sess.s + ":00+08:00"), endMs = Date.parse(sess.ed + "T" + sess.e + ":00+08:00");
+  const dur = isNaN(endMs) || endMs <= startMs ? 3600e3 : endMs - startMs, tw = localWhen_(startMs, dur, "Asia/Taipei", lang);
+  const tz = COUNTRY_TZ_[su.countryCode] || "", loc = tz && tz !== "Asia/Taipei" ? localWhen_(startMs, dur, tz, lang) : "";
+  const url = myUrl_(su.id, lang), zl = zoom && zoom.zoomUrl ? zoom.zoomUrl : "", zn = zoom && zoom.zoomNote ? zoom.zoomNote : "";
+  if (lang === "es") {
+    return { subject: "Recordatorio de clase: " + title + " (" + sess.ed + " " + sess.s + ", hora de Taiwán)",
+      body: "Hola " + su.name + ",\n\nTe recuerdo tu próxima clase de «" + title + "»:\n" + tw + " (hora de Taiwán)" + (loc ? "\nEn tu zona horaria: " + loc : "") + "\n"
+        + (zl ? "\nZoom: " + zl + (zn ? "\n" + zn : "") + "\n" : "")
+        + "\nSi no puedes asistir, pide permiso al menos " + LEAVE_HOURS + " horas antes en tu página personal:\n" + url + "\n(Una clase con permiso no cuenta como asistencia.)\n\nBen" };
+  }
+  const hans = lang === "hans", T = function (a, b) { return hans ? a : b; };
+  return { subject: T("上课提醒：", "上課提醒：") + title + "（" + sess.ed + " " + sess.s + T("，台湾时间）", "，台灣時間）"),
+    body: su.name + T(" 你好，", " 你好，") + "\n\n" + T("提醒你下一堂「", "提醒你下一堂「") + title + T("」：", "」：") + "\n" + tw + T("（台湾时间）", "（台灣時間）") + (loc ? "\n" + T("你所在时区：", "你所在時區：") + loc : "") + "\n"
+      + (zl ? "\nZoom：" + zl + (zn ? "\n" + zn : "") + "\n" : "")
+      + "\n" + T("如果没办法上课，请在开课前 " + LEAVE_HOURS + " 小时以前到你的专属页面请假：", "如果沒辦法上課，請在開課前 " + LEAVE_HOURS + " 小時以前到你的專屬頁面請假：") + "\n" + url + "\n" + T("（请假不算出席。）", "（請假不算出席。）") + "\n\nBen" };
+}
+function sendReminders() {
+  // 不用報名那把鎖（寄很多封信會佔很久，學員報名、請假會等不到）；改用快取旗標避免兩輪同時跑
+  const cache = CacheService.getScriptCache();
+  if (cache.get("rem_run")) { console.error("sendReminders：上一輪還沒跑完，這輪略過"); return { skipped: true }; }
+  cache.put("rem_run", "1", 600);
+  const res = { sent: 0, skipped: 0, errors: 0 };
+  try {
+    if (loadSettings_().reminders === false) return { off: true };             // 後台設定可以關掉
+    const nowMs = Date.now(), courses = fsList_(COLL.courses).filter(function (c) { return VISIBLE.indexOf(c.status) >= 0; });
+    const signups = fsList_(COLL.signups).filter(function (x) { return x.status === "paid"; });
+    courses.forEach(function (c) {
+      const mine = signups.filter(function (x) { return x.courseId === c.id; });
+      if (!mine.length) return;
+      const att = attMap_(c.id), zoom = fsGet_(COLL.priv, c.id) || {};
+      mine.forEach(function (su) {
+        const due = upcomingSessions_(c, su, att, su.id, 6).filter(function (x) {
+          const left = x.startMs - nowMs;
+          return left <= REMIND_HOURS * 3600e3 && left >= REMIND_MIN_MINUTES * 60e3 && !x.leave && !x.absent;
+        });
+        const done = Array.isArray(su.reminded) ? su.reminded.slice() : [];
+        due.forEach(function (x) {
+          const key = x.date + "@" + x.ed + "T" + x.s;
+          if (done.indexOf(key) >= 0) { res.skipped++; return; }
+          if (MailApp.getRemainingDailyQuota() < 3) { res.errors++; console.error("寄信額度用完，剩下的下一輪再寄"); return; }
+          try {
+            const m = reminderMail_(su, c, x, zoom);
+            MailApp.sendEmail({ to: su.email, subject: m.subject, body: m.body, name: "每天一分鐘 · Ben", replyTo: notifyEmail_() });
+            done.push(key); res.sent++;
+            fsPatch_(COLL.signups, su.id, { reminded: done.slice(-30) });
+          } catch (e) { res.errors++; console.error("reminder " + su.id + " " + e); }
+        });
+      });
+    });
+  } catch (err) { res.errors++; console.error("sendReminders " + (err && err.stack ? err.stack : err)); }
+  finally { try { cache.remove("rem_run"); } catch (e) { /* 忽略 */ } }
+  console.log("sendReminders " + JSON.stringify(res));
+  return res;
+}
+function installReminderTrigger() {
+  removeReminderTrigger();
+  ScriptApp.newTrigger("sendReminders").timeBased().everyHours(1).create();
+  Logger.log("OK　已設定：每小時自動檢查一次，把 " + REMIND_HOURS + " 小時內要上的課寄提醒信。");
+}
+function removeReminderTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "sendReminders") ScriptApp.deleteTrigger(t); });
 }
 
 /* ---------------------------------------------------------------------
@@ -365,6 +543,10 @@ function apiSignup_(b) {
       note: cleanLong_(b.note, 500), uiLang: uiLang,
       acceptedRules: true, acceptedAt: new Date().toISOString(), createdAt: new Date().toISOString()
     };
+    if (validToken_(b.renewFrom)) {                                  // 續報：記下是從哪一筆舊報名來的（只存編號）
+      const old = fsGet_(COLL.signups, b.renewFrom);
+      if (old && old.status === "paid" && old.ref) doc.renewOfRef = old.ref;
+    }
     if (!waitlist) {
       let options = priceOptions_(c, today);
       if (b.code) {
@@ -446,6 +628,7 @@ function doGet(e) {
     if (p.action === "payinfo") return json_(apiPayInfo_(p.courseId));
     if (p.action === "my") return json_(apiMy_(p.t));
     if (p.action === "code") return json_(apiCode_(p.courseId, p.code));
+    if (p.action === "renew") return json_(apiRenew_(p.t));
     return json_({ ok: false, error: "action" });
   } catch (err) { console.error(err && err.stack ? err.stack : String(err)); return json_({ ok: false, error: "server" }); }
 }
@@ -453,6 +636,7 @@ function doPost(e) {
   try {
     const b = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     if (!b.action || b.action === "signup") return json_(apiSignup_(b));
+    if (b.action === "leave") return json_(apiLeave_(b));
     return json_({ ok: false, error: "action" });
   } catch (err) { console.error(err && err.stack ? err.stack : String(err)); return json_({ ok: false, error: "server" }); }
 }
@@ -464,4 +648,6 @@ function checkSetup() {
   Logger.log("OK　Firestore 連線正常：設定 " + (Object.keys(s).length ? "已建立" : "尚未建立（到後台設定頁儲存一次）") + "，班級 " + courses.length + " 個");
   Logger.log("截圖資料夾：" + folder.getUrl());
   Logger.log("通知信箱：" + notifyEmail_() + "　今日寄信額度：" + MailApp.getRemainingDailyQuota());
+  const on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "sendReminders"; });
+  Logger.log("開課前自動提醒：" + (on ? "已啟用（每小時檢查）" : "還沒啟用，要的話執行 installReminderTrigger"));
 }

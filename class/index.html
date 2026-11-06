@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=3">
+<link rel="stylesheet" href="common.css?v=5">
 </head>
 <body>
 <div class="wrap">
@@ -29,6 +29,7 @@
   <section id="vList">
     <h1 data-i="title"></h1>
     <p class="lead" data-i="lead"></p>
+    <p class="promo" id="renewList" hidden></p>
     <div id="loading" class="card" data-i="loading"></div>
     <div id="loaderr" class="err-box" hidden></div>
     <div id="courses"></div>
@@ -49,6 +50,7 @@
     </ol>
 
     <form id="f1" class="card form" novalidate autocomplete="on">
+      <p class="promo" id="renewNote" hidden></p>
       <label><span class="lbl" data-i="name"></span>
         <input type="text" name="name" maxlength="80" autocomplete="name">
         <p class="fe" data-for="name"></p></label>
@@ -88,6 +90,10 @@
 
       <label><span class="lbl" data-i="note"></span>
         <textarea name="note" maxlength="500"></textarea></label>
+
+      <div class="policy">
+        <details><summary data-i="privTitle"></summary><p id="privBody"></p></details>
+      </div>
 
       <div><label class="chk"><input type="checkbox" name="agree"><span data-i="consent"></span></label>
         <p class="fe" data-for="agree"></p></div>
@@ -162,12 +168,12 @@
   <p class="foot" data-i="foot"></p>
 </div>
 
-<script src="common.js?v=3"></script>
+<script src="common.js?v=5"></script>
 <script>
 (function () {
   "use strict";
   const { t, $, $$, esc, pick, money, fmtYmd, daysBetween, slotsHtml, tzOptions, countryName, COUNTRIES, apiGet, apiPost, lsGet, lsPut } = CLS;
-  const S = { courses: [], today: CLS.twToday(), contact: {}, course: null, tz: CLS.defaultTz(), info: null, cur: "", shot: null, sending: false, waitlist: false, country: "", doneWait: false };
+  const S = { courses: [], today: CLS.twToday(), contact: {}, course: null, tz: CLS.defaultTz(), info: null, cur: "", shot: null, sending: false, waitlist: false, country: "", doneWait: false, renew: null, renewToken: new URLSearchParams(location.search).get("renew") || "" };
   const f1 = $("#f1"), f2 = $("#f2");
   const contactEmail = () => (S.info && S.info.contact && S.info.contact.email) || S.contact.email || CLS.DEFAULT_EMAIL;
   const contactIg = () => (S.info && S.info.contact && S.info.contact.ig) || S.contact.ig || CLS.DEFAULT_IG;
@@ -269,7 +275,24 @@
       const b = $("#loaderr"); b.hidden = false; b.textContent = t("loadErr"); return;
     }
     $("#loading").hidden = true;
+    if (/^[a-f0-9]{32}$/.test(S.renewToken)) {                 // 續報連結：帶入舊資料（失敗就當一般報名）
+      try { const r = await apiGet("renew", { t: S.renewToken }); if (r.ok && r.profile) { S.renew = r.profile; } } catch (e) { console.error(e); }
+    }
+    renderRenew();
     route();
+  }
+  function renderRenew() {
+    const l = $("#renewList"); l.hidden = !S.renew; if (S.renew) l.textContent = t("renewList", { name: S.renew.name });
+    const n = $("#renewNote"); n.hidden = !S.renew; if (S.renew) n.textContent = t("renewHi", { name: S.renew.name });
+  }
+  /* 續報：用舊資料填表（覆蓋草稿），同意規定一定要重新勾 */
+  function applyRenew() {
+    const r = S.renew; if (!r) return;
+    const set = (n, v) => { if (v !== undefined && v !== null && f1.elements[n]) f1.elements[n].value = v; };
+    set("name", r.name); set("email", r.email); set("email2", r.email); set("whatsapp", r.whatsapp);
+    if (r.countryCode === "OTHER") set("countryOther", r.country);
+    pendingSel = { country: r.countryCode, studentLevel: r.studentLevel, source: r.source };
+    f1.elements.agree.checked = false;
   }
 
   /* ---------- 第 1 步 ---------- */
@@ -289,10 +312,11 @@
     S.waitlist = c.state === "waitlist"; S.info = null; S.shot = null;
     $("#flowCourse").textContent = pick(c.title);
     f1.elements.desiredStart.min = S.today;
-    restoreDraft(); renderFlowTexts(); showStep(1); show("vFlow");
+    restoreDraft(); applyRenew(); renderFlowTexts(); showStep(1); show("vFlow");
   }
+  function renderPolicy() { $("#privBody").textContent = t("privBody", { mail: contactEmail() }); }
   function renderFlowTexts() {
-    buildSelects(); restoreSelects();
+    buildSelects(); restoreSelects(); renderPolicy();
     $("#next").textContent = S.waitlist ? t("sendWait") : t("next");
     $("#flowCourse").textContent = S.course ? pick(S.course.title) : "";
     $$(".fe[data-for]", f1).forEach(p => { if (p.dataset.k) p.textContent = t(p.dataset.k); });
@@ -363,7 +387,7 @@
       name: f1.elements.name.value.trim(), email: f1.elements.email.value.trim(), whatsapp: "+" + f1.elements.whatsapp.value.replace(/\D/g, ""),
       countryCode: S.country, nationality: S.country === "OTHER" ? f1.elements.countryOther.value.trim() : c[2],
       studentLevel: f1.elements.studentLevel.value, source: f1.elements.source.value, desiredStart: f1.elements.desiredStart.value || "", note: f1.elements.note.value.trim(),
-      acceptedRules: true, uiLang: CLS.getLang()
+      acceptedRules: true, uiLang: CLS.getLang(), renewFrom: S.renew ? S.renewToken : ""
     };
   }
   f1.addEventListener("submit", async e => {
@@ -520,7 +544,7 @@
     CLS.setLang(CLS.getLang()); CLS.applyStatic(document);
     if (S.courses.length || !$("#vList").hidden) { if (S.course) renderDetail(); else if (!$("#vList").hidden) renderList(); }
     if (!$("#vFlow").hidden) renderFlowTexts();
-    renderDone();
+    renderDone(); renderRenew();
     f2.hidden || check2();
   }
   CLS.bindLangSwitch($("#langsw"), applyLang);

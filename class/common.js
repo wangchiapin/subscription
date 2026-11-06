@@ -64,7 +64,11 @@
     src_wa: ["WhatsApp 群组", "WhatsApp 群組", "Grupo de WhatsApp"], src_other: ["其他", "其他", "Otro"],
     startWish: ["想从哪一天开始上课（选填）", "想從哪一天開始上課（選填）", "¿Desde qué fecha quieres empezar? (opcional)"], startHint: ["不填就从最近一次上课开始。", "不填就從最近一次上課開始。", "Si lo dejas vacío, empiezas en la próxima clase."],
     note: ["备注（选填）", "備註（選填）", "Comentarios (opcional)"],
-    consent: ["我已阅读上面的班级规定与退费说明，并且同意。", "我已閱讀上面的班級規定與退費說明，並且同意。", "Leí las reglas y la política de reembolso de arriba y las acepto."],
+    consent: ["我已阅读上面的班级规定、退费说明与隐私说明，并且同意。", "我已閱讀上面的班級規定、退費說明與隱私說明，並且同意。", "Leí las reglas, la política de reembolso y el aviso de privacidad de arriba y los acepto."],
+    privTitle: ["我们如何使用你的资料", "我們如何使用你的資料", "Cómo usamos tus datos"],
+    privBody: ["报名时填的姓名、Email、WhatsApp、国家、程度，以及付款截图与编号，只用来联络你、核对付款和安排上课。资料存放在 Google 的服务（Firebase 与 Google 云端硬盘），只有老师本人看得到，不会卖给或分享给别人。上课连结和教材，要等付款确认后才会出现在你的专属页面。想查看或删除你的资料，请来信 {mail}。",
+      "報名時填的姓名、Email、WhatsApp、國家、程度，以及付款截圖與編號，只用來聯絡你、核對付款和安排上課。資料存放在 Google 的服務（Firebase 與 Google 雲端硬碟），只有老師本人看得到，不會賣給或分享給別人。上課連結和教材，要等付款確認後才會出現在你的專屬頁面。想查看或刪除你的資料，請來信 {mail}。",
+      "Tu nombre, correo, WhatsApp, país, nivel, y la captura y referencia de tu pago solo se usan para contactarte, verificar el pago y organizar las clases. Se guardan en servicios de Google (Firebase y Google Drive); solo el profesor puede verlos y no se venden ni se comparten con nadie. El enlace de Zoom y los materiales aparecen en tu página personal solo después de confirmar tu pago. Para ver o borrar tus datos, escribe a {mail}."],
     next: ["下一步", "下一步", "Siguiente"], back: ["上一步", "上一步", "Atrás"], sendWait: ["送出候补", "送出候補", "Enviar a la lista de espera"],
     eName: ["请输入你的全名。", "請輸入你的全名。", "Escribe tu nombre completo."], eCountry: ["请选择国家。", "請選擇國家。", "Elige tu país."], eOther: ["请输入你的国家。", "請輸入你的國家。", "Escribe tu país."],
     eEmail: ["请输入有效的电子邮件。", "請輸入有效的電子郵件。", "Escribe un correo válido."], eEmail2: ["两次输入的电子邮件不一致。", "兩次輸入的電子郵件不一致。", "Los correos no coinciden."],
@@ -100,6 +104,15 @@
     errFull: ["这个班级刚刚额满了。", "這個班級剛剛額滿了。", "Esta clase acaba de llenarse."], errClosed: ["这个班级已经不接受报名。", "這個班級已經不接受報名。", "Esta clase ya no acepta inscripciones."],
     errDeadline: ["这个班级的报名已截止。", "這個班級的報名已截止。", "La inscripción a esta clase ya cerró."], errCurrency: ["这个班级无法使用该币别，请回上一步再试一次。", "這個班級無法使用該幣別，請回上一步再試一次。", "Esa moneda no está disponible. Vuelve atrás e inténtalo de nuevo."],
     errShot: ["截图太大或不是有效的图片，请换一张。", "截圖太大或不是有效的圖片，請換一張。", "La captura es demasiado grande o no es una imagen válida."],
+    sessTitle: ["接下来的课", "接下來的課", "Próximas clases"],
+    sessHint: ["开课前 {h} 小时以前可以自己请假。请假不算出席，需要补课请联络老师。", "開課前 {h} 小時以前可以自己請假。請假不算出席，需要補課請聯絡老師。", "Puedes pedir permiso hasta {h} horas antes de la clase. Una clase con permiso no cuenta como asistencia; si quieres reponerla, escríbeme."],
+    leaveBtn: ["我要请假", "我要請假", "Pedir permiso"], leaveUndo: ["取消请假", "取消請假", "Cancelar permiso"], leaveOn: ["已请假", "已請假", "Con permiso"],
+    leaveLate: ["已经不能自己请假了，请直接联络老师。", "已經不能自己請假了，請直接聯絡老師。", "Ya no puedes pedir permiso aquí; escríbeme directamente."],
+    leaveAbsent: ["老师已记为缺席", "老師已記為缺席", "Marcada como falta"], leaveErr: ["没有成功，请稍后再试，或直接联络老师。", "沒有成功，請稍後再試，或直接聯絡老師。", "No se pudo. Inténtalo más tarde o escríbeme."],
+    renewHi: ["欢迎回来，{name}！已经带入你上次的资料，请确认后继续。", "歡迎回來，{name}！已經帶入你上次的資料，請確認後繼續。", "¡Bienvenido de nuevo, {name}! Ya llenamos tus datos de la vez pasada; solo revísalos y continúa."],
+    renewList: ["欢迎回来，{name}！选一个新的班，报名时会自动带入你的资料。", "歡迎回來，{name}！選一個新的班，報名時會自動帶入你的資料。", "¡Bienvenido de nuevo, {name}! Elige un grupo nuevo y llenaremos tus datos automáticamente."],
+    renewTitle: ["想继续上课？", "想繼續上課？", "¿Quieres seguir estudiando?"], renewText: ["之后有新的班开放报名时，从这里报名会自动带入你的资料。", "之後有新的班開放報名時，從這裡報名會自動帶入你的資料。", "Cuando haya un grupo nuevo, inscríbete desde aquí y tus datos se llenarán automáticamente."],
+    renewBtn: ["报名下一期", "報名下一期", "Inscribirme al siguiente grupo"],
     chgTitle: ["课程时间有调整", "課程時間有調整", "Cambio de horario"], chgCancel: ["这堂课取消，不补课", "這堂課取消，不補課", "Esta clase se cancela (sin reposición)"],
     codeLbl: ["折扣码（选填）", "折扣碼（選填）", "Código de descuento (opcional)"], codeApply: ["套用", "套用", "Aplicar"], codeRemove: ["取消折扣码", "取消折扣碼", "Quitar código"],
     codeApplied: ["已套用折扣码 {c}", "已套用折扣碼 {c}", "Código {c} aplicado"],
@@ -221,6 +234,22 @@
     return { twDay: slot.d, twS: slot.s, twE: slot.e, locDay: a.dow, locS: a.time, locE: b.time };
   }
   const wdName = n => WD[lang][n - 1] || "";
+  /* 接下來的上課（含請假按鈕）：sessions 由後端算好，ed/s/e 是實際上課的台灣日期與時間 */
+  function sessionsHtml(sessions, tz, hours) {
+    if (!sessions || !sessions.length) return "";
+    const wdOf = ymd => { const p = parseYmd(ymd), w = new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay(); return w === 0 ? 7 : w; };
+    const rows = sessions.map(x => {
+      const w = wdOf(x.ed), v = slotView({ d: w, s: x.s, e: x.e }, tz, x.ed);
+      const when = `<b>${esc(fmtYmd(x.ed))} ${esc(wdName(w))} ${esc(x.s)}–${esc(x.e)}</b> <small>${esc(t("twTime"))}</small>`
+        + (tz === "Asia/Taipei" ? "" : `<br>→ ${esc(wdName(v.locDay))} ${esc(v.locS)}–${esc(v.locE)} <small>${esc(tzName(tz))}</small>`)
+        + (x.changed ? ` <span class="tag warn">${esc(t("chgTitle"))}</span>` : "");
+      const act = x.absent ? `<small class="hint">${esc(t("leaveAbsent"))}</small>`
+        : x.leave ? `<span class="tag">${esc(t("leaveOn"))}</span> <button type="button" class="btn sm" data-leave="${esc(x.date)}" data-undo="1">${esc(t("leaveUndo"))}</button>`
+        : x.canLeave ? `<button type="button" class="btn sm" data-leave="${esc(x.date)}">${esc(t("leaveBtn"))}</button>` : `<small class="hint">${esc(t("leaveLate"))}</small>`;
+      return `<li class="sess"><div>${when}</div><div class="sess-act">${act}</div></li>`;
+    });
+    return `<article class="card"><h2>${esc(t("sessTitle"))}</h2><ul class="sesslist">${rows.join("")}</ul><p class="hint">${esc(t("sessHint", { h: hours || 2 }))}</p><p class="fe" id="leaveErr" role="alert"></p></article>`;
+  }
   /* 單堂調課：course.changes = [{ date: 原本那天, newDate, s, e（台灣時間）, note, cancel }]；只顯示還沒發生的 */
   function changesHtml(c, tz, today) {
     const wdOf = ymd => { const p = parseYmd(ymd), w = new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay(); return w === 0 ? 7 : w; };
@@ -274,7 +303,8 @@
     const c = demoCourse();
     if (action === "courses") return { ok: true, today: twToday(), courses: [c], contact: { email: "demo@example.com", ig: "" } };
     if (action === "payinfo") return { ok: true, state: "open", options: c.options, promoUntil: c.promoUntil, paypal: { link: "" }, bankMode: "show", bank: { bank: "Banco de ejemplo", holder: "Titular de ejemplo", clabe: "000000000000000000", note: "" }, contact: { email: "demo@example.com", ig: "" } };
-    if (action === "my") return { ok: true, today: twToday(), signup: { name: "Demo", ref: "DEMO01", status: p.t === "0".repeat(32) ? "pending" : "paid", courseId: "demo", currency: "MXN", amount: 480, desiredStart: "", createdAt: "", paidAt: "", uiLang: "es" }, course: c, access: { zoomUrl: "https://zoom.us/j/0000000000", zoomNote: "ID: 000 000 0000", materials: [{ title: "Lección 1", url: "https://example.com/1", note: "PDF" }] }, contact: { email: "demo@example.com", ig: "" } };
+    if (action === "my") return { ok: true, today: twToday(), signup: { name: "Demo", ref: "DEMO01", status: p.t === "0".repeat(32) ? "pending" : "paid", courseId: "demo", currency: "MXN", amount: 480, desiredStart: "", createdAt: "", paidAt: "", uiLang: "es" }, course: c, access: { zoomUrl: "https://zoom.us/j/0000000000", zoomNote: "ID: 000 000 0000", materials: [{ title: "Lección 1", url: "https://example.com/1", note: "PDF" }] }, leaveHours: 2, sessions: [1, 3, 5].map((k, i) => { const d = addDays(twToday(), k); return { date: d, ed: d, s: "21:00", e: "22:00", changed: false, leave: !!demoLeave[d], absent: false, canLeave: i !== 2 }; }), contact: { email: "demo@example.com", ig: "" } };
+    if (action === "renew") return { ok: true, profile: { name: "Demo", email: "demo@example.com", whatsapp: "+52 55 1234 5678", countryCode: "MX", country: "México", studentLevel: "basic", source: "ig", uiLang: "es" } };
     if (action === "code") return String(p.code || "").toUpperCase() === "DEMO100" ? { ok: true, code: "DEMO100", options: c.options.map(o => ({ currency: o.currency, amount: Math.max((o.list || o.amount) - 100, 0), list: o.list || o.amount, code: true })) } : { ok: false, error: "code" };
     return { ok: false, error: "action" };
   }
@@ -284,7 +314,9 @@
     Object.keys(params || {}).forEach(k => u.searchParams.set(k, params[k]));
     const r = await fetch(u.toString()); return r.json();
   }
+  const demoLeave = {};
   async function apiPost(body) {
+    if (DEMO && body.action === "leave") { if (body.undo) delete demoLeave[body.date]; else demoLeave[body.date] = 1; return { ok: true, leave: !body.undo }; }
     if (DEMO) { await new Promise(r => setTimeout(r, 400)); return { ok: true, ref: "DEMO01", token: "0".repeat(32), status: body.waitlist ? "waitlist" : "pending", myUrl: "../my/?t=" + "0".repeat(32) }; }
     const r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
     return r.json();
@@ -301,5 +333,5 @@
   }
 
   global.CLS = { API_URL, DEMO, LANGS, K, COUNTRIES, TZS, $, $$, esc, lsGet, lsPut, pad, getLang, setLang, t, pick, countryName, tzName, applyStatic, bindLangSwitch,
-    parseYmd, isYmd, fmtYmd, daysBetween, addDays, twToday, money, nowLocal, nextOcc, slotView, slotsHtml, changesHtml, defaultTz, tzOptions, validTz, apiGet, apiPost, bindCopy, DEFAULT_PAYPAL_ME, DEFAULT_EMAIL, DEFAULT_IG };
+    parseYmd, isYmd, fmtYmd, daysBetween, addDays, twToday, money, nowLocal, nextOcc, slotView, slotsHtml, changesHtml, sessionsHtml, defaultTz, tzOptions, validTz, apiGet, apiPost, bindCopy, DEFAULT_PAYPAL_ME, DEFAULT_EMAIL, DEFAULT_IG };
 })(window);

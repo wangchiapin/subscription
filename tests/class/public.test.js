@@ -35,7 +35,16 @@ const srv = http.createServer((q, r) => {
   ok(/20:00|07:00|08:00/.test(det) || /→/.test(det), "詳情有換算當地時間：" + (det.match(/→[^\n]*/) || [""])[0]);
   await pg.selectOption("#tz", "Europe/Madrid"); ok(/→/.test(await pg.innerText("#detail")), "改時區仍顯示");
   // 報名流程：先送空表單
-  await pg.click("#goSignup"); await pg.waitForSelector("#f1"); await pg.click("#next");
+  await pg.click("#goSignup"); await pg.waitForSelector("#f1");
+  ok((await pg.locator("#f1 .policy details").count()) === 1, "報名第 1 步有隱私說明（退費寫在各班規則裡）");
+  const polTxt = () => pg.evaluate(() => ({ p: document.getElementById("privBody").textContent, c: document.querySelector('[data-i="consent"]').textContent }));
+  let pv = await polTxt();
+  ok(/Tu nombre, correo/.test(pv.p) && pv.p.includes("c@x.com") && /aviso de privacidad/.test(pv.c), "西文說明帶入聯絡信箱、同意文字含隱私說明");
+  await pg.click('[data-lang="hans"]'); pv = await polTxt();
+  ok(pv.p.includes("c@x.com") && pv.p.includes("Firebase") && pv.c.includes("隐私说明"), "簡體說明");
+  await pg.click('[data-lang="hant"]'); pv = await polTxt(); ok(pv.c.includes("隱私說明"), "繁體說明");
+  await pg.click('[data-lang="es"]');
+  await pg.click("#next");
   ok(await pg.locator("#f1 .fe:not(:empty)").count() >= 3, "空表單顯示欄位錯誤");
   await pg.fill('[name=name]', "Sofía Ramírez"); await pg.selectOption('[name=country]', { index: 1 }); await pg.fill('[name=email]', "sofia@x.com"); await pg.fill('[name=email2]', "other@x.com"); await pg.fill('[name=whatsapp]', "+52 55 1234 5678");
   const lv = await pg.$$eval('[name=studentLevel] option', o => o.map(x => x.value)); await pg.selectOption('[name=studentLevel]', lv[1]);
@@ -80,6 +89,27 @@ const srv = http.createServer((q, r) => {
   ok(/Esta clase se cancela/.test(mt), "個人頁顯示取消不補"); ok(mt.includes("zoom.us/j/777") || (await my.locator('a[href*="zoom.us/j/777"]').count()) === 1, "付款後看到 Zoom"); ok((await my.locator('a[href="https://example.com/l1"]').count()) === 1, "付款後看到教材");
   await my.click('[data-lang="hans"]'); ok((await my.innerText("body")).match(/[已付款|上课|教材]/), "個人頁切簡體");
   await my.goto(`${base}/class/my/?t=${"a".repeat(32)}&lang=es`); await my.waitForTimeout(600); ok((await my.locator("#err:not([hidden])").count()) === 1, "錯的連結顯示錯誤");
+  // 學員自己請假：個人頁按鈕 → 寫進點名紀錄 → 可取消
+  await my.goto(`${base}/class/my/?t=${su[0].id}&lang=es`); await my.waitForSelector(".sesslist");
+  const nb = await my.locator("[data-leave]").count(); ok(nb >= 1 && /Próximas clases/.test(await my.innerText("body")), "已付款個人頁列出接下來的課與請假按鈕 (" + nb + ")");
+  const d1 = await my.locator("[data-leave]").first().getAttribute("data-leave");
+  await my.locator("[data-leave]").first().click(); await my.waitForSelector('[data-undo="1"]');
+  ok(be.read("cls_attendance", "c1__" + d1) && be.read("cls_attendance", "c1__" + d1).marks[su[0].id] === "leave", "按請假：點名紀錄寫入 leave");
+  ok(/Con permiso/.test(await my.innerText(".sesslist")), "畫面顯示已請假");
+  await my.click('[data-undo="1"]'); await my.waitForFunction(() => !document.querySelector('[data-undo="1"]'));
+  ok(!(su[0].id in be.read("cls_attendance", "c1__" + d1).marks), "取消請假：標記移除");
+  await my.click('[data-lang="hans"]'); ok(/我要请假/.test(await my.innerText(".sesslist")), "請假按鈕可切簡體");
+  await my.click('[data-lang="es"]');
+  // 續報：連結帶入舊資料、同意要重勾；個人頁（已付款）有續報按鈕
+  await my.goto(`${base}/class/my/?t=${su[0].id}&lang=es`); await my.waitForTimeout(800);
+  ok((await my.locator(`a[href="../?renew=${su[0].id}"]`).count()) === 1, "已付款個人頁有「報名下一期」按鈕");
+  const pg3 = await mk(); await pg3.goto(`${base}/class/?lang=es&renew=${su[0].id}#c=c1`); await pg3.waitForSelector("#goSignup");
+  ok(/Bienvenido de nuevo/.test(await pg3.innerText("#renewList")) || /Bienvenido de nuevo/.test(await pg3.evaluate(() => document.getElementById("renewList").textContent)), "續報：列表頁有歡迎回來");
+  await pg3.click("#goSignup"); await pg3.waitForSelector("#f1:not([hidden])");
+  const rv = await pg3.evaluate(() => { const f = document.getElementById("f1").elements; return { n: f.name.value, e: f.email.value, e2: f.email2.value, w: f.whatsapp.value, c: f.country.value, a: f.agree.checked, note: document.getElementById("renewNote").hidden }; });
+  ok(rv.n && rv.e && rv.e === rv.e2 && rv.w && rv.c, "續報：姓名、Email、WhatsApp、國家都帶入 " + JSON.stringify(rv)); ok(rv.a === false && rv.note === false, "續報：同意沒預先勾，有歡迎說明");
+  const pg4 = await mk(); await pg4.goto(`${base}/class/?lang=es&renew=${"d".repeat(32)}#c=c1`); await pg4.waitForSelector("#goSignup"); await pg4.click("#goSignup");
+  ok(!(await pg4.inputValue("[name=name]")) && await pg4.evaluate(() => document.getElementById("renewNote").hidden), "續報：壞連結當作一般報名");
   // 第二人報名 → 額滿 → 候補
   const be2 = be; const raw2 = { courseId: "c1" }; 
   const r2 = be.post({ action: "signup", courseId: "c1", name: "Carlos P", email: "c2@x.com", whatsapp: "+525512340000", acceptedRules: true, uiLang: "es", currency: "MXN", ref: "REF-2222222", paidAt: "x", screenshot: { mime: "image/jpeg", data: png.toString("base64").padEnd(300, "A") } });
@@ -90,6 +120,6 @@ const srv = http.createServer((q, r) => {
   await pg2.click("#next"); await pg2.waitForSelector("#vDone:not([hidden])", { timeout: 8000 });
   ok(be.all("cls_signups").filter(s => s.status === "waitlist").length === 1, "候補直接送出");
   ok(be.all("cls_signups").filter(s => s.status === "waitlist")[0].source === "fb", "候補也存下「從哪裡知道」");
-  ok(pg.errs.length === 0 && pg2.errs.length === 0, "無 JS 錯誤 " + pg.errs.concat(pg2.errs).join("|"));
+  ok(pg.errs.length + pg2.errs.length + pg3.errs.length + pg4.errs.length === 0, "無 JS 錯誤 " + pg.errs.concat(pg2.errs, pg3.errs, pg4.errs).join("|"));
   await b.close(); srv.close(); console.log(fails ? "FAILED " + fails : "ALL PASS"); process.exit(fails ? 1 : 0);
 })();

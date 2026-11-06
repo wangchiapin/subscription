@@ -31,11 +31,25 @@ let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log("FAIL", m);
   await pg.click('[data-act="mark-paid"]'); await pg.click('#mpf button[type=submit]'); await pg.waitForSelector("#dlg", { state: "hidden" });
   ok(await pg.locator(".req").count() === 0, "待確認清空（已轉已付款）");
   await pg.click('[data-act="filter"][data-id="paid"]'); ok(await pg.locator(".req").count() === 3, "已付款 3 筆");
+  ok(await pg.locator('[data-copy*="/class/?renew="]').count() === 3, "已付款每筆都有複製續報連結");
   await pg.click('[data-act="notify"]'); const txt = await pg.inputValue("#nt"); ok(txt.includes("class/my/?t="), "通知含專屬連結"); await pg.click('[data-act="close"]');
   // 收入、設定
   await pg.click('[data-act="go"][data-id="income"]'); ok((await pg.locator("#main").innerText()).includes("合計"), "收入頁");
   await pg.click('[data-act="go"][data-id="settings"]'); await pg.fill('[name=clabe]', "123"); await pg.selectOption('[name=bankMode]', "show"); await pg.click('#sf button[type=submit]');
   ok(await pg.locator("#sf-err").isVisible(), "CLABE 驗證");
+  ok(await pg.locator('#sf [name=reminders]').isChecked(), "開課前自動提醒預設開");
+  await pg.fill('[name=clabe]', ""); await pg.selectOption('[name=bankMode]', "contact"); await pg.uncheck('#sf [name=reminders]'); await pg.click('#sf button[type=submit]'); await pg.waitForTimeout(200);
+  ok(!(await pg.locator('#sf [name=reminders]').isChecked()) && (await pg.evaluate(() => JSON.parse(localStorage.getItem("cls-admin-v1")).settings.reminders)) === false, "關掉提醒會存起來");
+  // 備份：三個下載（headless 對中文檔名會回報 "download"，所以只驗內容）
+  await pg.click('[data-act="go"][data-id="settings"]');
+  const dl = async sel => { const [d] = await Promise.all([pg.waitForEvent("download"), pg.click(sel)]); return { name: d.suggestedFilename(), text: fs.readFileSync(await d.path(), "utf8") }; };
+  const bs = await dl('[data-act="bk-signups"]');
+  ok(bs.text.startsWith("\ufeff") && bs.text.includes("匯款截圖") && bs.text.includes("折扣碼"), "備份：全部報名 CSV 有 BOM 與完整欄位");
+  ok(bs.text.trim().split("\r\n").length >= 6, "備份：全部報名含所有狀態");
+  const bi = await dl('[data-act="bk-income"]');
+  ok(bi.text.includes("收款日") && bi.text.trim().split("\r\n").length >= 4, "備份：收入明細只含已付款");
+  const bj = await dl('[data-act="bk-all"]'); const dump = JSON.parse(bj.text);
+  ok(dump.signups.length >= 5 && Array.isArray(dump.courses) && Array.isArray(dump.attendance) && dump.settings, "備份：完整 JSON 含各項資料");
   // 點名：預設全部出席；標缺席、請假；停課
   await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="attendance"][data-id="demo-c1"]').click(); await pg.waitForSelector("[data-att]");
   ok((await pg.locator("[data-att] .list-line").count()) === 2, "點名列出 2 位已付款學員");
@@ -77,6 +91,19 @@ let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log("FAIL", m);
   ok((await pg.locator("[data-code]").count()) === 2 && (await pg.innerText("#main")).includes("NEW50"), "新增折扣碼");
   await pg.locator('[data-code="NEW50"] [data-act="toggle-code"]').click(); ok((await pg.locator('[data-code="NEW50"]').innerText()).includes("已停用"), "停用");
   await pg.locator('[data-code="NEW50"] [data-act="del-code"]').click(); await pg.click("#confirm-ok"); await pg.waitForTimeout(200); ok((await pg.locator("[data-code]").count()) === 1, "刪除");
+  // 學員自己請假：還沒上課的日期也要在點名視窗看得到，並標示是學員自己請的
+  await pg.evaluate(() => {
+    const k = "cls-admin-v1", d = JSON.parse(localStorage.getItem(k)), fut = new Date(Date.now() + 8 * 3600e3 + 40 * 864e5).toISOString().slice(0, 10);
+    d.attendance.push({ id: "demo-c1__" + fut, courseId: "demo-c1", date: fut, marks: { "demo-s2": "leave" }, by: { "demo-s2": "student" }, updatedAt: "x" });
+    localStorage.setItem(k, JSON.stringify(d));
+  });
+  await pg.goto(base); await pg.waitForSelector("#main"); await pg.click('[data-act="go"][data-id="courses"]');
+  await pg.locator('[data-act="attendance"][data-id="demo-c1"]').click(); await pg.waitForSelector("[data-att]");
+  ok((await pg.locator("#att-date option").first().innerText()).includes("1 人請假"), "點名視窗列出未來有人請假的日期");
+  await pg.selectOption("#att-date", { index: 0 }); await pg.waitForSelector("[data-att] .list-line");
+  ok((await pg.locator("[data-att]").innerText()).includes("學員自己請假"), "標示學員自己請假");
+  await pg.click('[data-act="att-set"][data-id="demo-s2"][data-v="present"]'); ok(!(await pg.locator("[data-att]").innerText()).includes("學員自己請假"), "老師改標記後不再標示");
+  await pg.click('[data-act="close"]');
   // 未成班
   await pg.click('[data-act="go"][data-id="courses"]'); await pg.locator('[data-act="close-course"]').first().click(); await pg.click("#confirm-ok");
   await pg.waitForTimeout(300); await pg.click('[data-act="go"][data-id="signups"]'); await pg.click('[data-act="filter"][data-id="refund_pending"]');

@@ -341,6 +341,7 @@ const filterSignups = () => {
     && (!q || [s.name, s.email, s.whatsapp, s.ref, s.payRef].some(v => String(v || "").toLowerCase().includes(q))))
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 };
+const renewLink = s => `${SITE_BASE}/class/?renew=${s.id}`;
 const myLink = (s, lang) => `${SITE_BASE}/class/my/?t=${s.id}&lang=${lang || s.uiLang || "es"}`;
 const waHref = (s, text) => `https://wa.me/${String(s.whatsapp || "").replace(/\D/g, "")}${text ? "?text=" + encodeURIComponent(text) : ""}`;
 function signupRow(s) {
@@ -349,7 +350,7 @@ function signupRow(s) {
   const btn = (act, label, cls) => `<button class="btn sm ${cls || ""}" data-act="${act}" data-id="${esc(s.id)}">${label}</button>`;
   const acts = {
     pending: [btn("mark-paid", "標記已付款", "primary"), btn("notify", "通知"), btn("to-refund", "待退款"), btn("to-cancel", "取消")],
-    paid: [btn("notify", "通知學生", "primary"), btn("to-refund", "待退款"), btn("to-pending", "移回待確認")],
+    paid: [btn("notify", "通知學生", "primary"), `<button class="btn sm" data-copy="${esc(renewLink(s))}">複製續報連結</button>`, btn("to-refund", "待退款"), btn("to-pending", "移回待確認")],
     waitlist: [btn("mark-paid", "標記已付款（私下收款）", "primary"), btn("notify", "通知"), btn("to-cancel", "取消")],
     refund_pending: [btn("to-refunded", "標記已退款", "primary"), btn("notify", "通知"), btn("to-pending", "移回待確認")],
     refunded: [btn("to-pending", "移回待確認")], cancelled: [btn("to-pending", "移回待確認")]
@@ -368,6 +369,7 @@ function signupRow(s) {
       ${s.paidConfirmedAt ? `<dt>確認收款</dt><dd>${esc(fmtTs(s.paidConfirmedAt))}　${esc(money(s.paidAmount, s.paidCurrency))}</dd>` : ""}
       ${s.codeUsed ? `<dt>折扣碼</dt><dd>${esc(s.codeUsed)}（折 ${esc(money(s.codeDiscount, s.currency))}）</dd>` : ""}
       ${s.status === "paid" ? `<dt>出缺席</dt><dd>${esc(attSummary(s))}</dd>` : ""}
+      ${s.renewOfRef ? `<dt>續報</dt><dd>舊學生續報（上一筆編號 ${esc(s.renewOfRef)}）</dd>` : ""}
       ${s.note ? `<dt>學員備註</dt><dd>${esc(s.note)}</dd>` : ""}
       <dt>同意規定</dt><dd>${s.acceptedAt ? esc(fmtTs(s.acceptedAt)) : "-"}</dd>
       <dt>專屬連結</dt><dd><a href="${esc(myLink(s))}" target="_blank" rel="noopener">開啟學員看到的頁面</a></dd></dl>
@@ -517,13 +519,47 @@ document.addEventListener("click", e => {          // 對話框裡的複製按�
   else toast("這個瀏覽器不能自動複製，請手動選取文字");
 });
 
+function saveFile(name, text, type) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const csvQ = v => `"${String(v === undefined || v === null ? "" : v).replace(/"/g, '""')}"`;
+const toCsv = (cols, rows, val) => "\ufeff" + [cols.map(c => csvQ(c[1])).join(",")].concat(rows.map(s => cols.map(c => csvQ(val(s, c[0]))).join(","))).join("\r\n");
+const SIGNUP_COLS = [["ref", "編號"], ["status", "狀態"], ["course", "班級"], ["name", "姓名"], ["email", "Email"], ["whatsapp", "WhatsApp"], ["country", "國家"], ["studentLevel", "程度"], ["source", "從哪裡知道"], ["currency", "幣別"], ["amount", "實收金額"], ["twd", "約合台幣"], ["listAmount", "原價"], ["codeUsed", "折扣碼"], ["codeDiscount", "折扣金額"], ["method", "付款方式"], ["payRef", "付款憑證編號"], ["screenshotUrl", "匯款截圖"], ["createdAt", "報名時間"], ["desiredStart", "想開始日"], ["paidConfirmedAt", "確認收款時間"], ["refundedAt", "退款時間"], ["renewOfRef", "續報自（上一筆編號）"], ["note", "學員備註"], ["adminNote", "我的備註"]];
+function signupVal(s, k) {
+  if (k === "status") return SIGNUP_STATUS[s.status] || s.status;
+  if (k === "course") return courseTitle(s.courseId);
+  if (k === "amount") return s.paidAmount || s.expectedAmount || "";
+  if (k === "currency") return s.paidCurrency || s.currency || "";
+  if (k === "twd") return s.status === "paid" ? (s.paidTwd || toTwd(Number(s.paidAmount || s.expectedAmount) || 0, s.paidCurrency || s.currency || "MXN")) : "";
+  if (k === "method") return s.method === "spei" ? "披索轉帳" : s.method === "paypal" ? "PayPal" : "";
+  if (k === "source") return ({ ig: "Instagram", fb: "Facebook", friend: "朋友介紹", wa: "WhatsApp 群組", other: "其他" })[s.source] || s.source || "";
+  return s[k];
+}
+/* 報名分頁的按鈕：匯出目前篩選出來的 */
 function exportCsv() {
-  const rows = filterSignups(), cols = [["ref", "編號"], ["status", "狀態"], ["course", "班級"], ["name", "姓名"], ["email", "Email"], ["whatsapp", "WhatsApp"], ["country", "國家"], ["studentLevel", "程度"], ["source", "從哪裡知道"], ["currency", "幣別"], ["amount", "金額"], ["method", "付款方式"], ["payRef", "付款憑證編號"], ["createdAt", "報名時間"], ["desiredStart", "想開始日"], ["paidConfirmedAt", "確認收款時間"], ["note", "備註"]];
-  const q = v => `"${String(v === undefined || v === null ? "" : v).replace(/"/g, '""')}"`;
-  const val = (s, k) => k === "status" ? SIGNUP_STATUS[s.status] : k === "course" ? courseTitle(s.courseId) : k === "amount" ? (s.paidAmount || s.expectedAmount || "") : k === "currency" ? (s.paidCurrency || s.currency || "") : s[k];
-  const csv = "﻿" + [cols.map(c => q(c[1])).join(",")].concat(rows.map(s => cols.map(c => q(val(s, c[0]))).join(","))).join("\r\n");
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = `團班報名_${twToday()}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  const rows = filterSignups();
+  saveFile(`團班報名_${twToday()}.csv`, toCsv(SIGNUP_COLS, rows, signupVal), "text/csv;charset=utf-8");
   toast(`已匯出 ${rows.length} 筆`);
+}
+/* 設定頁的備份：全部報名 */
+function exportAllSignups() {
+  saveFile(`團班報名_全部_${twToday()}.csv`, toCsv(SIGNUP_COLS, state.signups.slice().sort((x, y) => String(x.createdAt).localeCompare(String(y.createdAt))), signupVal), "text/csv;charset=utf-8");
+  toast(`已匯出全部 ${state.signups.length} 筆報名`);
+}
+/* 收入明細：只有已付款，一筆一列，方便報帳 */
+function exportIncome() {
+  const rows = state.signups.filter(s => s.status === "paid").sort((x, y) => String(x.paidConfirmedAt).localeCompare(String(y.paidConfirmedAt)));
+  const cols = [["paidDate", "收款日"], ["ref", "編號"], ["course", "班級"], ["name", "姓名"], ["country", "國家"], ["method", "付款方式"], ["currency", "幣別"], ["amount", "金額"], ["twd", "約合台幣"], ["codeUsed", "折扣碼"], ["payRef", "付款憑證編號"]];
+  const csv = toCsv(cols, rows, (s, k) => k === "paidDate" ? twDate(s.paidConfirmedAt) : signupVal(s, k));
+  saveFile(`團班收入_${twToday()}.csv`, csv, "text/csv;charset=utf-8");
+  toast(`已匯出 ${rows.length} 筆收入`);
+}
+/* 完整備份：所有資料一個檔（含教材與 Zoom 連結，請自己保管好） */
+function exportBackup() {
+  const dump = { exportedAt: new Date().toISOString(), app: "class-signup", courses: state.courses, priv: state.priv, signups: state.signups, codes: state.codes, attendance: state.attendance, settings: state.settings };
+  saveFile(`團班完整備份_${twToday()}.json`, JSON.stringify(dump, null, 1), "application/json");
+  toast("已下載完整備份");
 }
 
 /* ===================================================================== 點名：只記「缺席」「請假」，沒記的都算出席 */
@@ -561,14 +597,18 @@ function openAttendance(cid, date) {
   const dates = classDates(c).reverse().slice(0, 40);
   date = date || dates[0] || "";
   const sel = dates.slice(); if (date && !sel.includes(date)) sel.unshift(date);
+  const futureLeave = state.attendance.filter(a => a.courseId === cid && a.date > twToday() && Object.values(a.marks || {}).includes("leave")).map(a => a.date).sort().reverse();   // 學員提早請的假：還沒上課也要看得到
+  futureLeave.forEach(d => { if (!sel.includes(d)) sel.unshift(d); });
+  if (!date && sel.length) date = sel[0];
+  const leaveN = d => Object.values(((attOf(cid, d) || {}).marks) || {}).filter(v => v === "leave").length;
   const rec = date ? attOf(cid, date) : null, chg = date ? changeOf(c, date) : null, byChange = !!(chg && chg.cancel), cancelled = byChange || !!(rec && rec.cancelled), marks = (rec && rec.marks) || {};
   const people = signupsOf(cid).filter(s => s.status === "paid" && studentStart(s) <= date).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const seg = (s, v, label) => `<button type="button" class="chip ${((marks[s.id] || "present") === v) ? "on" : ""}" data-act="att-set" data-id="${esc(s.id)}" data-v="${v}">${label}</button>`;
   openDlg(`點名：${titleOf(c.title)}`, `<div class="form" data-att data-cid="${esc(cid)}" data-date="${esc(date)}">
-    ${sel.length ? `<label><span class="lbl">上課日期（台灣日期）</span><select id="att-date">${sel.map(d => `<option value="${d}" ${d === date ? "selected" : ""}>${d}（${WD[wdOf(d) - 1]}）${(changeOf(c, d) || {}).cancel ? " 取消" : (changeOf(c, d) || {}).newDate ? ` 已調到 ${changeOf(c, d).newDate}` : ""}</option>`).join("")}</select></label>` : `<p class="hint">還沒有已過的上課日。請確認班級有填開課日與每週上課時段，而且開課日已經到了。</p>`}
+    ${sel.length ? `<label><span class="lbl">上課日期（台灣日期）</span><select id="att-date">${sel.map(d => `<option value="${d}" ${d === date ? "selected" : ""}>${d}（${WD[wdOf(d) - 1]}）${(changeOf(c, d) || {}).cancel ? " 取消" : (changeOf(c, d) || {}).newDate ? ` 已調到 ${changeOf(c, d).newDate}` : ""}${leaveN(d) ? `　${leaveN(d)} 人請假` : ""}</option>`).join("")}</select></label>` : `<p class="hint">還沒有已過的上課日。請確認班級有填開課日與每週上課時段，而且開課日已經到了。</p>`}
     <label><span class="lbl">或選其他日期</span><input type="date" id="att-other" max="${esc(twToday())}"></label>
     ${date ? (cancelled ? `<p class="hint warnTxt">${byChange ? "這天已用「調課」取消不補，" : "這天已標成停課，"}不計入上課堂數。</p>` : (people.length ? `<p class="hint">沒按的都算出席。請假不算出席。</p>
-      ${people.map(s => `<div class="list-line"><span><b>${esc(s.name)}</b><span class="sub">${esc(attSummary(s))}</span></span><span class="acts" style="margin:0">${seg(s, "present", "出席")}${seg(s, "absent", "缺席")}${seg(s, "leave", "請假")}</span></div>`).join("")}` : `<div class="empty">這天沒有已付款的學員。</div>`))
+      ${people.map(s => `<div class="list-line"><span><b>${esc(s.name)}</b><span class="sub">${esc(attSummary(s))}${marks[s.id] === "leave" && ((rec && rec.by) || {})[s.id] === "student" ? "　✋ 學員自己請假" : ""}</span></span><span class="acts" style="margin:0">${seg(s, "present", "出席")}${seg(s, "absent", "缺席")}${seg(s, "leave", "請假")}</span></div>`).join("")}` : `<div class="empty">這天沒有已付款的學員。</div>`))
       + (byChange ? "" : `<div class="acts"><button type="button" class="btn sm ${cancelled ? "primary" : ""}" data-act="att-cancel">${cancelled ? "取消停課標記" : "這天停課（不計堂數）"}</button></div>`) : ""}</div>`);
 }
 async function saveAtt(cid, date, rec) {
@@ -579,7 +619,8 @@ async function saveAtt(cid, date, rec) {
 async function setAtt(cid, date, token, v) {
   const old = attOf(cid, date) || { id: attId(cid, date), courseId: cid, date, marks: {} }, marks = { ...(old.marks || {}) };
   if (v === "present") delete marks[token]; else marks[token] = v;
-  await saveAtt(cid, date, { ...old, marks, updatedAt: new Date().toISOString() });
+  const by = { ...(old.by || {}) }; if (by[token] && marks[token] !== "leave") delete by[token];       // 你改了標記，就不再是「學員自己請的」
+  await saveAtt(cid, date, { ...old, marks, by, updatedAt: new Date().toISOString() });
   openAttendance(cid, date); renderMain();
 }
 async function toggleCancelAtt(cid, date) {
@@ -729,6 +770,9 @@ function viewSettings() {
       <h3>聯絡方式（學員在付款頁會看到）</h3>
       <label><span class="lbl">Email</span><input type="email" name="contactEmail" value="${esc(s.contactEmail || "")}" placeholder="預設：a2224907@gmail.com"></label>
       <label><span class="lbl">Instagram 網址</span><input type="text" name="igUrl" value="${esc(s.igUrl || "")}" placeholder="預設：@cadadiaunosminutos_ben_chino"></label>
+      <h3>開課前自動提醒</h3>
+      <label class="chk"><input type="checkbox" name="reminders" ${s.reminders === false ? "" : "checked"}><span>開課前 24 小時，自動寄信提醒已付款、沒請假的學員（含 Zoom 連結）</span></label>
+      <p class="hint">要先在 Apps Script 執行一次 installReminderTrigger 才會真的開始寄（步驟在 apps-script/class-signup.gs 最上面）。這個開關可以隨時暫停。</p>
       <h3>PayPal（美金）</h3>
       <label><span class="lbl">PayPal.me 連結</span><input type="text" name="paypalMe" value="${esc(s.paypalMe || "")}" placeholder="https://paypal.me/你的帳號"><p class="hint">學員按付款時，網址會自動加上金額與幣別。</p></label>
       <h3>披索轉帳（墨西哥）</h3>
@@ -742,6 +786,9 @@ function viewSettings() {
       <div id="sf-err" class="err-box" hidden></div>
       <div class="foot"><button type="submit" class="btn primary">儲存設定</button></div></form>
     ${viewCodes()}
+    <div class="card"><h3>備份</h3><p class="hint">資料平常存在 Firebase。這裡可以另外下載一份留底，報帳或換系統時用。</p>
+      <div class="acts"><button class="btn sm" data-act="bk-signups">全部報名（CSV）</button><button class="btn sm" data-act="bk-income">收入明細（CSV）</button><button class="btn sm" data-act="bk-all">完整備份（JSON）</button></div>
+      <p class="hint" style="margin-top:8px">CSV 可以直接用 Excel 開。完整備份包含班級、報名、折扣碼、點名紀錄、教材與 Zoom 連結，請自己收好，不要傳給別人。</p></div>
     ${state.mode === "local" ? `<div class="card"><h3>示範資料</h3><p class="hint">本機示範模式專用：載入幾筆假資料來試用，或清空。</p><div class="acts"><button class="btn sm" data-act="seed">載入示範資料</button><button class="btn sm danger" data-act="wipe">清空示範資料</button></div></div>` : ""}`;
 }
 async function saveSettings(e) {
@@ -756,7 +803,7 @@ async function saveSettings(e) {
   if (errs.length) { box.hidden = false; box.innerHTML = errs.map(esc).join("<br>"); return; }
   box.hidden = true;
   try {
-    await store.put("settings", { contactEmail: v("contactEmail"), igUrl: v("igUrl"), paypalMe: v("paypalMe"), bankMode: f.elements.bankMode.value,
+    await store.put("settings", { reminders: f.elements.reminders.checked, contactEmail: v("contactEmail"), igUrl: v("igUrl"), paypalMe: v("paypalMe"), bankMode: f.elements.bankMode.value,
       mxn: { bank: v("bank"), holder: v("holder"), clabe: v("clabe"), note: v("mxnNote") }, rates: { USD: num(v("rUSD")), MXN: num(v("rMXN")) } });
     toast("設定已儲存");
   } catch (err) { console.error(err); box.hidden = false; box.textContent = "儲存失敗，請確認登入帳號與 Firestore 規則"; }
@@ -812,7 +859,7 @@ const act = {
   "to-cancel": async id => { const s = signupById(id); if (s && await confirmBox(`取消「${s.name}」的報名？`, "名額會釋出。", "取消報名")) { await setStatus(s, "cancelled"); toast("已取消"); } },
   "save-note": async id => { const s = signupById(id), t = $(`[data-note="${id}"]`); if (!s) return; await store.put("signups", { ...s, adminNote: t.value.trim() }); toast("備註已儲存"); },
   "del-signup": async id => { const s = signupById(id); if (!s || !(await confirmBox(`刪除「${s.name}」這筆報名？`, "刪除後無法復原。", "刪除"))) return; await store.remove("signups", id); state.signups = state.signups.filter(x => x.id !== id); await syncTaken(s.courseId); toast("已刪除"); },
-  "export-csv": exportCsv, seed: async () => { await seed(); }, wipe: async () => { if (await confirmBox("清空示範資料？", "只會清掉這個瀏覽器裡的示範資料。", "清空")) { await local.wipe(); toast("已清空"); } },
+  "export-csv": exportCsv, "bk-signups": exportAllSignups, "bk-income": exportIncome, "bk-all": exportBackup, seed: async () => { await seed(); }, wipe: async () => { if (await confirmBox("清空示範資料？", "只會清掉這個瀏覽器裡的示範資料。", "清空")) { await local.wipe(); toast("已清空"); } },
   "set-cstatus": (id, el) => setCourseStatus(id, el.value),
   attendance: id => openAttendance(id), changes: id => openChanges(id),
   "chg-del": async (date) => { const b = $("[data-chg]"), c = courseById(b.dataset.cid); await saveChanges(c, (c.changes || []).filter(x => x.date !== date)); toast("已刪除這個調課"); openChanges(c.id); renderMain(); },

@@ -22,27 +22,31 @@ function create(opts) {
     if (m === "patch") { const k = coll + "/" + id; if (!db[k]) return R(404, {}); const f = JSON.parse(o.payload).fields; u.searchParams.getAll("updateMask.fieldPaths").forEach(x => { db[k][x] = f[x]; }); return R(200, docOf(k)); }
     return R(400, {});
   };
-  const out = [];
+  const out = [], triggers = [];
   const ctx = {
     console: { error: (...a) => { log.errors.push(a.join(" ")); if (opts.verbose) console.log("[gs error]", ...a); }, log() {} }, Logger: { log() {} },
-    UrlFetchApp: { fetch }, ScriptApp: { getOAuthToken: () => "tok" },
+    UrlFetchApp: { fetch }, ScriptApp: { getOAuthToken: () => "tok", getProjectTriggers: () => triggers.slice(), deleteTrigger: t => { const i = triggers.indexOf(t); if (i >= 0) triggers.splice(i, 1); },
+      newTrigger: fn => ({ timeBased() { return this; }, everyHours() { return this; }, create() { const t = { getHandlerFunction: () => fn }; triggers.push(t); return t; } }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ text: s, setMimeType() { return this; } }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
-    CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
+    CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    Utilities: { getUuid: () => crypto.randomUUID(), base64Decode: s => Array.from(Buffer.from(s, "base64")), newBlob: (b, t, n) => ({ b, t, n }) },
-    DriveApp: { getFolderById: () => ({ createFile: blob => { const f = { name: blob.n, trashed: false, getUrl: () => "https://drive/" + blob.n, setTrashed() { f.trashed = true; } }; files.push(f); return f; } }), createFolder: () => ({ getId: () => "F2", getUrl: () => "u", createFile() {} }) },
+    Utilities: { formatDate: (d, tz, fmt) => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short" }).formatToParts(d).map(x => [x.type, x.value]));
+      const u = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 }[p.weekday]; return fmt === "u" ? String(u) : fmt === "HH:mm" ? p.hour + ":" + p.minute : `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`; },
+    getUuid: () => crypto.randomUUID(), base64Decode: s => Array.from(Buffer.from(s, "base64")), newBlob: (b, t, n) => ({ b, t, n }) },
+    DriveApp: { getFolderById: () => ({ getUrl: () => "https://drive/folder", createFile: blob => { const f = { name: blob.n, trashed: false, getUrl: () => "https://drive/" + blob.n, setTrashed() { f.trashed = true; } }; files.push(f); return f; } }), createFolder: () => ({ getId: () => "F2", getUrl: () => "u", createFile() {} }) },
     MailApp: { sendEmail: m => { if (opts.mailFail) throw new Error("quota"); mails.push(m); }, getRemainingDailyQuota: () => 100 },
     Session: { getEffectiveUser: () => ({ getEmail: () => "me@example.com" }) },
     Date, JSON, Math, Number, String, Object, Array, RegExp, Error, encodeURIComponent, decodeURIComponent
   };
   vm.createContext(ctx);
   // const 宣告不會掛到 ctx 上，所以結尾補一行把需要的東西匯出
-  vm.runInContext(SRC + "\n;this.__api={doGet:doGet,doPost:doPost};", ctx);
+  vm.runInContext(SRC + "\n;this.__api={doGet:doGet,doPost:doPost,sendReminders:sendReminders,installReminderTrigger:installReminderTrigger,removeReminderTrigger:removeReminderTrigger,checkSetup:checkSetup};", ctx);
   const parse = r => JSON.parse(r.text);
   const fsTo = (v) => ({ doGet: 0 });
   return {
-    db, mails, files, props, log,
+    db, mails, files, props, log, triggers,
+    run: name => ctx.__api[name](),
     get: params => parse(ctx.__api.doGet({ parameter: params })),
     post: body => parse(ctx.__api.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } })),
     // 把一般物件寫進假 Firestore（跟後台寫的一樣）
